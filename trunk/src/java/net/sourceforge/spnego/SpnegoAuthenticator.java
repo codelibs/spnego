@@ -49,7 +49,7 @@ import org.ietf.jgss.GSSManager;
  * 
  * <p>
  * Basic Authentication must be enabled through the filter configuration. See
- * the <a href="http://spnego.sourceforge.net" target="_blank">spnego.sourceforge.net</a>
+ * the <a href="http://spnego.sourceforge.net" target="_blank">http://spnego.sourceforge.net</a>
  * documentation for an example configuration.
  * </p>
  * 
@@ -77,28 +77,31 @@ final class SpnegoAuthenticator {
 
     private static final Logger LOGGER = Logger.getLogger(Constants.LOGGER_NAME);
     
-    /* Flag to indicate if BASIC Auth is allowed. */
+    /** Flag to indicate if BASIC Auth is allowed. */
     private final transient boolean allowBasic;
+    
+    /** Flag to indicate if credential delegation is allowed. */
+    private final transient boolean allowDelegation;
 
-    /* Flag to skip auth if localhost. */
+    /** Flag to skip auth if localhost. */
     private final transient boolean allowLocalhost;
 
-    /* Flag to indicate if non-SSL BASIC Auth allowed. */
+    /** Flag to indicate if non-SSL BASIC Auth allowed. */
     private final transient boolean allowUnsecure;
     
-    /* Flag to indicate if NTLM is accepted. */
+    /** Flag to indicate if NTLM is accepted. */
     private final transient boolean promptIfNtlm;
 
-    /* Login Context module name for client auth. */
+    /** Login Context module name for client auth. */
     private final transient String clientModuleName;
 
-    /* Login Context server uses for pre-authentication. */
+    /** Login Context server uses for pre-authentication. */
     private  final transient LoginContext loginContext;
 
-    /* Credentials server uses for authenticating requests. */
+    /** Credentials server uses for authenticating requests. */
     private final transient GSSCredential serverCredentials;
     
-    /* Server Principal used for pre-authentication. */
+    /** Server Principal used for pre-authentication. */
     private final transient KerberosPrincipal serverPrincipal;
 
     /**
@@ -119,6 +122,7 @@ final class SpnegoAuthenticator {
         this.clientModuleName = config.getClientLoginModule();
         this.allowLocalhost = config.isLocalhostAllowed();
         this.promptIfNtlm = config.downgradeNtlm();
+        this.allowDelegation = config.isDelegationAllowed();
 
         if (config.useKeyTab()) {
             this.loginContext = new LoginContext(config.getServerLoginModule());
@@ -153,11 +157,11 @@ final class SpnegoAuthenticator {
      * @param req servlet request
      * @param resp servlet response
      * 
-     * @return null if auth not complete else KerberosPrincipal of client
+     * @return null if auth not complete else SpnegoPrincipal of client
      * @throws GSSException 
      * @throws IOException 
      */
-    protected KerberosPrincipal authenticate(final HttpServletRequest req
+    protected SpnegoPrincipal authenticate(final HttpServletRequest req
         , final SpnegoHttpServletResponse resp) throws GSSException
         , IOException {
         
@@ -173,7 +177,7 @@ final class SpnegoAuthenticator {
             return doLocalhost();
         }
         
-        final KerberosPrincipal principal;
+        final SpnegoPrincipal principal;
         final SpnegoAuthScheme scheme = SpnegoProvider.negotiate(
                 req, resp, basicSupported, this.promptIfNtlm, serverRealm);
         
@@ -228,7 +232,7 @@ final class SpnegoAuthenticator {
         }
     }
     
-    /*
+    /**
      * Performs authentication using the BASIC Auth mechanism.
      *
      * <p>
@@ -236,9 +240,9 @@ final class SpnegoAuthenticator {
      * the auth scheme did not contain BASIC Auth data/token.
      * </p>
      * 
-     * @return KerberosPrincipal for the given auth scheme.
+     * @return SpnegoPrincipal for the given auth scheme.
      */
-    private KerberosPrincipal doBasicAuth(final SpnegoAuthScheme scheme
+    private SpnegoPrincipal doBasicAuth(final SpnegoAuthScheme scheme
         , final SpnegoHttpServletResponse resp) throws IOException {
 
         final byte[] data = scheme.getToken();
@@ -263,7 +267,7 @@ final class SpnegoAuthenticator {
         final CallbackHandler handler = SpnegoProvider.getUsernamePasswordHandler(
                 username, password);
         
-        KerberosPrincipal principal = null;
+        SpnegoPrincipal principal = null;
         
         try {
             // assert
@@ -277,7 +281,7 @@ final class SpnegoAuthenticator {
             cntxt.login();
             cntxt.logout();
 
-            principal = new KerberosPrincipal(username + '@' 
+            principal = new SpnegoPrincipal(username + '@' 
                     + this.serverPrincipal.getRealm()
                     , KerberosPrincipal.KRB_NT_PRINCIPAL);
 
@@ -295,21 +299,21 @@ final class SpnegoAuthenticator {
         return principal;
     }
 
-    private KerberosPrincipal doLocalhost() {
+    private SpnegoPrincipal doLocalhost() {
         final String username = System.getProperty("user.name");
         
         if (null == username || username.isEmpty()) {
-            return new KerberosPrincipal(this.serverPrincipal.getName() + '@' 
+            return new SpnegoPrincipal(this.serverPrincipal.getName() + '@' 
                     + this.serverPrincipal.getRealm()
                     , this.serverPrincipal.getNameType());            
         } else {
-            return new KerberosPrincipal(username + '@' 
+            return new SpnegoPrincipal(username + '@' 
                     + this.serverPrincipal.getRealm()
                     , KerberosPrincipal.KRB_NT_PRINCIPAL);            
         }
     }
 
-    /*
+    /**
      * Performs authentication using the SPNEGO mechanism.
      *
      * <p>
@@ -317,9 +321,9 @@ final class SpnegoAuthenticator {
      * the auth scheme did not contain the SPNEGO/GSS token.
      * </p>
      * 
-     * @return KerberosPrincipal for the given auth scheme.
+     * @return SpnegoPrincipal for the given auth scheme.
      */
-    private KerberosPrincipal doSpnegoAuth(
+    private SpnegoPrincipal doSpnegoAuth(
         final SpnegoAuthScheme scheme, final SpnegoHttpServletResponse resp) 
         throws GSSException, IOException {
 
@@ -332,11 +336,17 @@ final class SpnegoAuthenticator {
         }
 
         GSSContext context = null;
+        GSSCredential delegCred = null;
         
         try {
             context = GSSManager.getInstance().createContext(this.serverCredentials);
 
-            final byte[] token = context.acceptSecContext(gss, 0, gss.length);
+            byte[] token = null;
+            
+            synchronized (GSSCredential.class) {
+                token = context.acceptSecContext(gss, 0, gss.length);
+                GSSCredential.class.notify();
+            }
 
             if (null == token) {
                 LOGGER.finer("Token was NULL.");
@@ -353,16 +363,21 @@ final class SpnegoAuthenticator {
             }
 
             principal = context.getSrcName().toString();
+            
+            if (this.allowDelegation && context.getCredDelegState()) {
+                delegCred = context.getDelegCred();
+            }
+            
         } finally {
             if (null != context) {
                 context.dispose();
             }
         }
 
-        return new KerberosPrincipal(principal, KerberosPrincipal.KRB_NT_PRINCIPAL);
+        return new SpnegoPrincipal(principal, KerberosPrincipal.KRB_NT_PRINCIPAL, delegCred);
     }
 
-    /*
+    /**
      * Returns true if HTTP request is from the same host (localhost).
      * 
      * @param req servlet request

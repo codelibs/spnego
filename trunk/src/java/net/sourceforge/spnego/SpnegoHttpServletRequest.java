@@ -20,36 +20,44 @@ package net.sourceforge.spnego;
 
 import java.security.Principal;
 
-import javax.security.auth.kerberos.KerberosPrincipal;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletRequestWrapper;
 
 import net.sourceforge.spnego.SpnegoHttpFilter.Constants;
 
+import org.ietf.jgss.GSSCredential;
+
 /**
  * Wrap ServletRequest so we can do our own handling of the 
  * principal and auth types.
  * 
+ * <p>Also, see the documentation on the {@link DelegateServletRequest} class.</p>
+ * 
+ * <p>Finally, a credential delegation example can be found on 
+ * <a href="http://spnego.sourceforge.net" target="_blank">http://spnego.sourceforge.net</a>
+ * </p>
+ * 
  * @author Darwin V. Felix
  *
  */
-final class SpnegoHttpServletRequest extends HttpServletRequestWrapper {
+final class SpnegoHttpServletRequest extends HttpServletRequestWrapper 
+    implements DelegateServletRequest {
     
     /** Client Principal. */
-    private final transient KerberosPrincipal principal;
+    private final transient SpnegoPrincipal principal;
     
     /**
      * Creates Servlet Request specifying KerberosPrincipal of user.
      * 
      * @param request
-     * @param kerberosPrincipal
+     * @param spnegoPrincipal 
      */
     SpnegoHttpServletRequest(final HttpServletRequest request
-        , final KerberosPrincipal kerberosPrincipal) {
+        , final SpnegoPrincipal spnegoPrincipal) {
         
         super(request);
         
-        this.principal = kerberosPrincipal;
+        this.principal = spnegoPrincipal;
     }
     
     /**
@@ -74,6 +82,15 @@ final class SpnegoHttpServletRequest extends HttpServletRequestWrapper {
         }
         
         return authType;
+    }
+    
+    /**
+     * Return the client's/requester's delegated credential or null.
+     * 
+     * @return client's delegated credential or null.
+     */
+    public GSSCredential getDelegatedCredential() {
+        return this.principal.getDelegatedCredential();
     }
     
     /**

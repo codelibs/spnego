@@ -24,7 +24,6 @@ import java.net.URISyntaxException;
 import java.security.PrivilegedActionException;
 import java.util.logging.Logger;
 
-import javax.security.auth.kerberos.KerberosPrincipal;
 import javax.security.auth.login.LoginException;
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
@@ -167,6 +166,10 @@ import org.ietf.jgss.GSSException;
  *  &lt;/html&gt;
  *  </pre>
  *  </p>
+ *  
+ * <p>See more usage examples at 
+ * <a href="http://spnego.sourceforge.net" target="_blank">http://spnego.sourceforge.net</a>
+ * </p>
  * 
  * @author Darwin V. Felix
  * 
@@ -216,7 +219,7 @@ public final class SpnegoHttpFilter implements Filter {
                 (HttpServletResponse) response);
 
         // client/caller principal
-        final KerberosPrincipal principal;
+        final SpnegoPrincipal principal;
         try {
             principal = this.authenticator.authenticate(httpRequest, spnegoResponse);
         } catch (GSSException gsse) {
@@ -272,9 +275,22 @@ public final class SpnegoHttpFilter implements Filter {
         public static final String ALLOW_BASIC = "spnego.allow.basic";
 
         /**
-         * Flag to indicate if requests coming from http://localhost 
+         * Servlet init param name in web.xml <b>spnego.allow.delegation</b>.
+         * 
+         * <p>Set this value to <code>true</code> if server should support 
+         * credential delegation requests.</p>
+         * 
+         * <p>Take a look at the {@link DelegateServletRequest} for more 
+         * information about other pre-requisites.</p>
+         */
+        public static final String ALLOW_DELEGATION = "spnego.allow.delegation";
+        
+        /**
+         * Servlet init param name in web.xml <b>spnego.allow.localhost</b>.
+         * 
+         * <p>Flag to indicate if requests coming from http://localhost 
          * or http://127.0.0.1 should not be authenticated using 
-         * Kerberos.
+         * Kerberos.</p>
          * 
          * <p>This feature helps to obviate the requirement of 
          * creating an SPN for developer machines.</p>

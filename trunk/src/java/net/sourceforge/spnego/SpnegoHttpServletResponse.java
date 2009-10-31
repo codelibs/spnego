@@ -18,7 +18,6 @@
 
 package net.sourceforge.spnego;
 
-
 import java.io.IOException;
 
 import javax.servlet.http.HttpServletResponse;
@@ -68,8 +67,8 @@ public final class SpnegoHttpServletResponse extends HttpServletResponseWrapper 
      * Sets the HTTP Status Code and optionally set the the content 
      * length to zero and flush the buffer.
      * 
-     * @param status 
-     * @param immediate 
+     * @param status http status code
+     * @param immediate set to true to set content len to zero and flush
      * @throws IOException 
      * 
      * @see #setStatus(int)
