@@ -20,10 +20,12 @@ package net.sourceforge.spnego;
 
 import net.sourceforge.spnego.SpnegoHttpFilter.Constants;
 
-
-
 /**
  * Example schemes are "Negotiate" and "Basic". 
+ * 
+ * <p>See examples and tutorials at 
+ * <a href="http://spnego.sourceforge.net" target="_blank">http://spnego.sourceforge.net</a>
+ * </p>
  * 
  * @author Darwin V. Felix
  *

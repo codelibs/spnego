@@ -57,6 +57,10 @@ import org.ietf.jgss.Oid;
  * own HTTP client.
  * </p>
  * 
+ * <p>For more example usage, see the documentation at 
+ * <a href="http://spnego.sourceforge.net" target="_blank">http://spnego.sourceforge.net</a>
+ * </p>
+ * 
  * @author Darwin V. Felix
  * 
  */
@@ -151,14 +155,14 @@ public final class SpnegoProvider {
         return scheme;
     }
     
-    /*
+    /**
      * Returns the GSS-API interface for creating a security context.
      * 
      * @param subject the person to be authenticated
      * @return GSSCredential to be used for creating a security context.
      * @throws PrivilegedActionException
      */
-    private static GSSCredential getClientCredential(final Subject subject)
+    public static GSSCredential getClientCredential(final Subject subject)
         throws PrivilegedActionException {
 
         final PrivilegedExceptionAction<GSSCredential> action = 
@@ -180,18 +184,18 @@ public final class SpnegoProvider {
      * data integrity requirements, confidentiality and if mutual 
      * authentication is required.
      * 
-     * @param subject person to be authenticated
+     * @param creds credentials of the person to be authenticated
      * @param url HTTP address of server (used for constructing a {@link GSSName}).
      * @return GSSContext 
      * @throws GSSException
      * @throws PrivilegedActionException
      */
-    public static GSSContext getGSSContext(final Subject subject, final URL url) 
-        throws GSSException, PrivilegedActionException {
+    public static GSSContext getGSSContext(final GSSCredential creds, final URL url) 
+        throws GSSException {
         
         return MANAGER.createContext(SpnegoProvider.getServerName(url)
                 , SpnegoProvider.SPNEGO_OID
-                , SpnegoProvider.getClientCredential(subject)
+                , creds
                 , GSSContext.DEFAULT_LIFETIME);
     }
     
@@ -225,7 +229,7 @@ public final class SpnegoProvider {
         }
     }
     
-    /*
+    /**
      * Returns the Universal Object Identifier representation of 
      * the SPNEGO mechanism.
      * 
@@ -234,15 +238,6 @@ public final class SpnegoProvider {
     private static Oid getOid() {
         Oid oid = null;
         try {
-            /*
-            The Simple and Protected GSS-API Negotiation Mechanism defined here
-            is a pseudo-security mechanism, represented by the object identifier
-            iso.org.dod.internet.security.mechanism.snego (1.3.6.1.5.5.2) which
-            enables GSS-API peers to determine in-band whether their credentials
-            share common GSS-API security mechanism(s), and if so, to invoke
-            normal security context establishment for a selected common security
-            mechanism.
-            */
             oid = new Oid("1.3.6.1.5.5.2");
         } catch (GSSException gsse) {
             LOGGER.log(Level.SEVERE, "Unable to create OID 1.3.6.1.5.5.2 !", gsse);
@@ -273,14 +268,15 @@ public final class SpnegoProvider {
         return Subject.doAs(subject, action);
     }
 
-    /*
+    /**
      * Returns the {@link GSSName} constructed out of the passed-in 
      * URL object.
      * 
      * @param url HTTP address of server
      * @return GSSName of URL.
+     * @throws GSSException 
      */
-    private static GSSName getServerName(final URL url) throws GSSException {
+    static GSSName getServerName(final URL url) throws GSSException {
         return MANAGER.createName("HTTP@" + url.getHost(),
             GSSName.NT_HOSTBASED_SERVICE, SpnegoProvider.SPNEGO_OID);
     }

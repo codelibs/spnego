@@ -23,8 +23,8 @@ import java.io.FileNotFoundException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
-import java.util.logging.Logger;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.security.auth.login.AppConfigurationEntry;
 import javax.security.auth.login.Configuration;
@@ -47,10 +47,14 @@ import net.sourceforge.spnego.SpnegoHttpFilter.Constants;
  * </code>
  * </p>
  * 
+ * <p>See an example web.xml file at 
+ * <a href="http://spnego.sourceforge.net" target="_blank">http://spnego.sourceforge.net</a>
+ * </p>
+ * 
  * @author Darwin V. Felix
  *
  */
-final class SpnegoFilterConfig {
+final class SpnegoFilterConfig { // NOPMD
     
     private static final Logger LOGGER = Logger.getLogger(Constants.LOGGER_NAME);
     
@@ -59,38 +63,41 @@ final class SpnegoFilterConfig {
     
     private static transient SpnegoFilterConfig instance = null;
 
-    /* true if Basic auth should be offered. */
+    /** true if Basic auth should be offered. */
     private transient boolean allowBasic = false;
     
-    /* true if request from localhost should not be authenticated. */
+    /** true if server should support credential delegation requests. */
+    private transient boolean allowDelegation = false;
+    
+    /** true if request from localhost should not be authenticated. */
     private transient boolean allowLocalhost = true;
     
-    /* true if non-ssl for basic auth is allowed. */
+    /** true if non-ssl for basic auth is allowed. */
     private transient boolean allowUnsecure = true;
     
-    /* true if all req. login module options set. */
+    /** true if all req. login module options set. */
     private transient boolean canUseKeyTab = false;
     
-    /* name of the client login module. */
+    /** name of the client login module. */
     private transient String clientLoginModule = null;
     
-    /* password to domain account. */
+    /** password to domain account. */
     private transient String password = null;
     
-    /* true if instead of err on ntlm token, prompt for username/pass. */
+    /** true if instead of err on ntlm token, prompt for username/pass. */
     private transient boolean promptNtlm = false;
 
-    /* name of the server login module. */
+    /** name of the server login module. */
     private transient String serverLoginModule = null;
     
-    /* domain account to use for pre-authentication. */
+    /** domain account to use for pre-authentication. */
     private transient String username = null;
     
     private SpnegoFilterConfig() {
         // default private
     }
     
-    /*
+    /**
      * Class is a Singleton. Use the static getInstance() method.
      */
     private SpnegoFilterConfig(final FilterConfig config) throws FileNotFoundException
@@ -142,6 +149,12 @@ final class SpnegoFilterConfig {
             this.allowLocalhost = 
                 Boolean.parseBoolean(config.getInitParameter(Constants.ALLOW_LOCALHOST));
         }
+        
+        // determine if the server supports credential delegation 
+        if (null != config.getInitParameter(Constants.ALLOW_DELEGATION)) {
+            this.allowDelegation = 
+                Boolean.parseBoolean(config.getInitParameter(Constants.ALLOW_DELEGATION));
+        }
     }
     
     private void doClientModule(final String moduleName) {
@@ -176,7 +189,7 @@ final class SpnegoFilterConfig {
         }
     }
     
-    /*
+    /**
      * Set the canUseKeyTab flag by determining if all LoginModule options 
      * have been set.
      * 
@@ -308,6 +321,15 @@ final class SpnegoFilterConfig {
     }
     
     /**
+     * Returns true if the server should support credential delegation requests.
+     * 
+     * @return true if server supports credential delegation
+     */
+    boolean isDelegationAllowed() {
+        return this.allowDelegation;
+    }
+    
+    /**
      * Returns true if requests from localhost are allowed.
      * 
      * @return true if requests from localhost are allowed
@@ -384,7 +406,7 @@ final class SpnegoFilterConfig {
         return true;
     }
 
-    /*
+    /**
      * Specify if Basic authentication is allowed and if un-secure/non-ssl 
      * Basic should be allowed.
      * 
@@ -406,7 +428,7 @@ final class SpnegoFilterConfig {
         this.allowUnsecure = Boolean.parseBoolean(unsecure);
     }
 
-    /*
+    /**
      * Specify the logging level.
      * 
      * @param level logging level
@@ -462,7 +484,7 @@ final class SpnegoFilterConfig {
         this.promptNtlm = downgradeNtlm;
     }
 
-    /*
+    /**
      * Set the username and password if specified in web.xml's init params.
      * 
      * @param usr domain account

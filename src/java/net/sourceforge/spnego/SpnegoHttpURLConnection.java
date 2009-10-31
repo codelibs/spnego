@@ -1,3 +1,21 @@
+/** 
+ * Copyright (C) 2009 "Darwin V. Felix" <dfelix@users.sourceforge.net>
+ * 
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ * 
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ */
+
 package net.sourceforge.spnego;
 
 import java.io.IOException;
@@ -13,7 +31,6 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.security.auth.Subject;
 import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.login.LoginContext;
 import javax.security.auth.login.LoginException;
@@ -21,6 +38,7 @@ import javax.security.auth.login.LoginException;
 import net.sourceforge.spnego.SpnegoHttpFilter.Constants;
 
 import org.ietf.jgss.GSSContext;
+import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
 
 /**
@@ -37,7 +55,7 @@ import org.ietf.jgss.GSSException;
  * A krb5.conf and a login.conf is required when using this class. Take a 
  * look at the <a href="http://spnego.sourceforge.net" target="_blank">spnego.sourceforge.net</a> 
  * documentation for an example krb5.conf and login.conf file. 
- * Also, you must provide a keytab file OR a username and password.
+ * Also, you must provide a keytab file, a username and password, or allowtgtsessionkey.
  * </p>
  * 
  * <p>
@@ -96,36 +114,72 @@ import org.ietf.jgss.GSSException;
 public final class SpnegoHttpURLConnection {
 
     private static final Logger LOGGER = Logger.getLogger(Constants.LOGGER_NAME);
+    
+    private static final byte[] EMPTY_BYTE = new byte[0];
 
-    /*
+    /**
      * If false, this connection object has not created a communications link to 
      * the specified URL. If true, the communications link has been established.
      */
     private transient boolean connected = false;
 
-    /*
+    /**
+     * Default is GET.
+     * 
      * @see java.net.HttpURLConnection#getRequestMethod()
      */
     private transient String requestMethod = "GET";
     
-    /*
+    /**
      * @see java.net.URLConnection#getRequestProperties()
      */
     private final transient Map<String, List<String>> requestProperties = 
         new LinkedHashMap<String, List<String>>();
 
-    /* Login Context for authenticating client. */
+    /** 
+     * Login Context for authenticating client. If username/password 
+     * or GSSCredential is provided (in constructor) then this 
+     * field will always be null.
+     */
     private final transient LoginContext loginContext;
 
-    /* Flag to determine if GSSContext has been established. */
+    /**
+     * Client's credentials. If username/password or LoginContext is provided 
+     * (in constructor) then this field will always be null.
+     */
+    private final transient GSSCredential credential;
+
+    /** 
+     * Flag to determine if GSSContext has been established. Users of this 
+     * class should always check that this field is true before using/trusting 
+     * the contents of the response.
+     */
     private transient boolean cntxtEstablished = false;
 
-    /* Ref to HTTP URL Connection object after calling connect method. */
+    /** 
+     * Ref to HTTP URL Connection object after calling connect method. 
+     * Always call spnego.disconnect() when done using this class.
+     */
     private transient HttpURLConnection conn = null;
+
+    /** 
+     * Request credential to be delegated. 
+     * Default is false. 
+     */
+    private transient boolean reqCredDeleg = false;
+    
+    /**
+     * Determines if the GSSCredentials (if any) used during the 
+     * connection request should be automatically disposed by 
+     * this class when finished.
+     * Default is true.
+     */
+    private transient boolean autoDisposeCreds = true;
 
     /**
      * Creates an instance where the LoginContext relies on a keytab 
-     * file being specified by "java.security.auth.login.config".
+     * file being specified by "java.security.auth.login.config" or 
+     * where LoginContext relies on tgtsessionkey.
      * 
      * @param loginModuleName 
      * @throws LoginException 
@@ -135,6 +189,30 @@ public final class SpnegoHttpURLConnection {
 
         this.loginContext = new LoginContext(loginModuleName);
         this.loginContext.login();
+        this.credential = null;
+    }
+    
+    /**
+     * Create an instance where the GSSCredential is specified by the parameter 
+     * and where the GSSCredential is automatically disposed after use.
+     *  
+     * @param creds credentials to use
+     */
+    public SpnegoHttpURLConnection(final GSSCredential creds) {
+        this(creds, true);
+    }
+    
+    /**
+     * Create an instance where the GSSCredential is specified by the parameter 
+     * and whether the GSSCredential should be disposed after use.
+     * 
+     * @param creds credentials to use
+     * @param dispose true if GSSCredential should be diposed after use
+     */
+    public SpnegoHttpURLConnection(final GSSCredential creds, final boolean dispose) {
+        this.loginContext = null;
+        this.credential = creds;
+        this.autoDisposeCreds = dispose;
     }
 
     /**
@@ -155,25 +233,26 @@ public final class SpnegoHttpURLConnection {
 
         this.loginContext = new LoginContext(loginModuleName, handler);
         this.loginContext.login();
+        this.credential = null;
     }
 
-    /*
+    /**
      * Throws IllegalStateException if this connection object has not yet created 
      * a communications link to the specified URL.
      */
     private void assertConnected() {
         if (!this.connected) {
-            throw new IllegalStateException("Not connected");
+            throw new IllegalStateException("Not connected.");
         }
     }
 
-    /*
+    /**
      * Throws IllegalStateException if this connection object has already created 
      * a communications link to the specified URL.
      */
     private void assertNotConnected() {
         if (this.connected) {
-            throw new IllegalStateException("Already connected");
+            throw new IllegalStateException("Already connected.");
         }
     }
 
@@ -191,23 +270,26 @@ public final class SpnegoHttpURLConnection {
      * @see java.net.URLConnection#connect()
      */
     public HttpURLConnection connect(final URL url)
-        throws GSSException, PrivilegedActionException, IOException, LoginException {
+        throws GSSException, PrivilegedActionException, IOException {
 
         assertNotConnected();
 
         GSSContext context = null;
         
         try {
-            final Subject subject = this.loginContext.getSubject();
-
-            context = SpnegoProvider.getGSSContext(subject, url);
+            context = this.getGSSContext(url);
             context.requestMutualAuth(true);
             context.requestConf(true);
             context.requestInteg(true);
+            context.requestCredDeleg(this.reqCredDeleg);
 
-            byte[] data = new byte[0];
-            data = context.initSecContext(data, 0, data.length);
-
+            byte[] data = null;
+            
+            synchronized (GSSCredential.class) {
+                data = context.initSecContext(EMPTY_BYTE, 0, 0);
+                GSSCredential.class.notify();
+            }
+            
             this.conn = (HttpURLConnection) url.openConnection();
             this.connected = true;
 
@@ -230,34 +312,76 @@ public final class SpnegoHttpURLConnection {
             final SpnegoAuthScheme scheme = SpnegoProvider.getAuthScheme(
                     this.conn.getHeaderField(Constants.AUTHN_HEADER));
             
-            // assert
+            // app servers will not return a WWW-Authenticate on 302, (and 30x...?)
             if (null == scheme) {
-                throw new UnsupportedOperationException("Server did not provide"
-                        + Constants.AUTHN_HEADER + " header.");
-            }
-
-            data = scheme.getToken();
-
-            if (Constants.NEGOTIATE_HEADER.equalsIgnoreCase(scheme.getScheme())) {
-                data = context.initSecContext(data, 0, data.length);
+                LOGGER.fine("SpnegoProvider.getAuthScheme(...) returned null.");
+                
             } else {
-                throw new UnsupportedOperationException("Scheme NOT Supported: " 
-                        + scheme.getScheme());
-            }
+                data = scheme.getToken();
+    
+                if (Constants.NEGOTIATE_HEADER.equalsIgnoreCase(scheme.getScheme())) {
+                    synchronized (GSSCredential.class) {
+                        data = context.initSecContext(data, 0, data.length);
+                        GSSCredential.class.notify();
+                    }
 
-            this.cntxtEstablished = context.isEstablished();
-            
+                    // TODO : support context loops where i>1
+                    if (null != data && data.length > 0) {
+                        LOGGER.warning("Server requested context loop.");
+                    }
+                    
+                } else {
+                    throw new UnsupportedOperationException("Scheme NOT Supported: " 
+                            + scheme.getScheme());
+                }
+
+                this.cntxtEstablished = context.isEstablished();
+            }
         } finally {
-            if (null != context) {
-                context.dispose();
-                context = null;
-            }
-            if (null != this.loginContext) {
-                this.loginContext.logout();
-            }
+            this.dispose(context);
+            context = null;
         }
 
         return this.conn;
+    }
+    
+    /**
+     * Logout the LoginContext instance and call dispose() on GSSCredential 
+     * if autoDisposeCreds is set to true.
+     */
+    private void dispose() {
+        this.dispose(null);
+    }
+    
+    /**
+     * Logout the LoginContext instance, and call dispose() on GSSCredential 
+     * if autoDisposeCreds is set to true, and call dispose on the passed-in 
+     * GSSContext instance.
+     */
+    private void dispose(final GSSContext context) {
+        if (null != context) {
+            try {
+                context.dispose();
+            } catch (GSSException gsse) {
+                LOGGER.log(Level.WARNING, "call to dispose context failed.", gsse);
+            }
+        }
+        
+        if (null != this.credential && this.autoDisposeCreds) {
+            try {
+                this.credential.dispose();
+            } catch (final GSSException gsse) {
+                LOGGER.log(Level.WARNING, "call to dispose credential failed.", gsse);
+            }
+        }
+        
+        if (null != this.loginContext) {
+            try {
+                this.loginContext.logout();
+            } catch (final LoginException le) {
+                LOGGER.log(Level.WARNING, "call to logout context failed.", le);
+            }
+        }
     }
 
     /**
@@ -266,14 +390,12 @@ public final class SpnegoHttpURLConnection {
      * @see java.net.HttpURLConnection#disconnect()
      */
     public void disconnect() {
-        try {
-            this.loginContext.logout();
-        } catch (LoginException le) {
-            LOGGER.log(Level.WARNING, "logout failed during disconnect", le);
-        }
+        this.dispose();
         this.requestProperties.clear();
         this.connected = false;
-        this.conn.disconnect();
+        if (null != this.conn) {
+            this.conn.disconnect();
+        }
     }
 
     /**
@@ -330,7 +452,47 @@ public final class SpnegoHttpURLConnection {
 
         this.requestProperties.put(key, Arrays.asList(value));
     }
+    
+    /**
+     * Returns a GSSContextt for the given url with a default lifetime.
+     *  
+     * @param url http address
+     * @return GSSContext for the given url
+     * @throws GSSException
+     * @throws PrivilegedActionException
+     */
+    private GSSContext getGSSContext(final URL url) throws GSSException
+        , PrivilegedActionException {
 
+        final GSSCredential creds;
+        
+        if (null == this.credential) {
+            if (null == this.loginContext) {
+                throw new IllegalStateException(
+                        "GSSCredential AND LoginContext NOT initialized");
+                
+            } else {
+                creds = SpnegoProvider.getClientCredential(this.loginContext.getSubject());
+            }
+        } else {
+            creds = this.credential;
+        }
+        
+        return SpnegoProvider.getGSSContext(creds, url);
+    }
+
+    /**
+     * Get header value at specified index.
+     * 
+     * @param index
+     * @return header value at specified index
+     */
+    public String getHeaderField(final int index) {
+        assertConnected();
+        
+        return this.conn.getHeaderField(index);
+    }
+    
     /**
      * Get header value by header name.
      * 
@@ -342,6 +504,18 @@ public final class SpnegoHttpURLConnection {
         assertConnected();
 
         return this.conn.getHeaderField(name);
+    }
+    
+    /**
+     * Get header field key at specified index.
+     * 
+     * @param index
+     * @return header field key at specified index
+     */
+    public String getHeaderFieldKey(final int index) {
+        assertConnected();
+        
+        return this.conn.getHeaderFieldKey(index);
     }
 
     /**
@@ -385,9 +559,21 @@ public final class SpnegoHttpURLConnection {
 
         return this.conn.getResponseMessage();
     }
+    
+    /**
+     * Request that this GSSCredential be allowed for delegation.
+     * 
+     * @param requestDelegation true to allow/request delegation
+     */
+    public void requestCredDeleg(final boolean requestDelegation) {
+        this.assertNotConnected();
+        
+        this.reqCredDeleg = requestDelegation;
+    }
 
     /**
      * May override the default GET method.
+     * 
      * @param method 
      * 
      * @see java.net.HttpURLConnection#setRequestMethod(String)
