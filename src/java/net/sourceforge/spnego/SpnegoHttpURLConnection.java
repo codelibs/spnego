@@ -323,6 +323,9 @@ public final class SpnegoHttpURLConnection {
             
             SpnegoHttpURLConnection.LOCK.lock();
             try {
+                // work-around to GSSContext/AD timestamp vs sequence field replay bug
+                try { Thread.sleep(31); } catch (InterruptedException e) { assert true; }
+                
                 context = this.getGSSContext(url);
                 context.requestMutualAuth(true);
                 context.requestConf(true);
