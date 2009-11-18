@@ -25,14 +25,20 @@ import org.ietf.jgss.GSSCredential;
 /**
  * The default installation of Internet Explorer and Active Directory 
  * allow the user's/requester's credential to be delegated.
+ *
+ * <p>
+ * By default, {@link SpnegoHttpURLConnection} has delegation set 
+ * to false. To allow delegation, call the <code>requestCredDeleg</code> 
+ * method on the <code>SpnegoHttpURLConnection</code> instance.
+ * </p>
  * 
  * <p>
- * The server/service's pre-authentication account must be specified as 
+ * Also, the server/service's pre-authentication account must be specified as 
  * "Account is trusted for delegation" in Active Directory.
  * </p>
  * 
  * <p>
- * The server/service's spnego servlet init params must be specified 
+ * Finally, the server/service's spnego servlet init params must be specified 
  * to allow credential delegation by setting the property 
  * <code>spnego.allow.delegation</code> to true (false by default).
  * </p>
@@ -43,9 +49,8 @@ import org.ietf.jgss.GSSCredential;
  * </p>
  * 
  * <p>
- * By default, {@link SpnegoHttpURLConnection} has delegation set 
- * to false. To allow delegation, call the <code>requestCredDeleg</code> 
- * method on the <code>SpnegoHttpURLConnection</code> instance.
+ * Java Application Servers can obtain the delegated credential by casting 
+ * the HTTP request.
  * </p>
  * 
  * <p>
@@ -59,8 +64,10 @@ import org.ietf.jgss.GSSCredential;
  * </pre>
  * </p>
  * 
- * <p>For more examples, go to 
- * <a href="http://spnego.sourceforge.net" target="_blank">http://spnego.sourceforge.net</a>
+ * <p>
+ * To see a working example and instructions, take a look at the 
+ * <a href="http://spnego.sourceforge.net/credential_delegation.html" 
+ * target="_blank">credential delegation example</a>. 
  * </p>
  * 
  * @author Darwin V. Felix

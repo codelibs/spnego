@@ -38,7 +38,7 @@ import org.ietf.jgss.GSSException;
 
 /**
  * Http Servlet Filter that provides <a
- * href="http://en.wikipedia.org/wiki/SPNEGO">SPNEGO</a> authentication.
+ * href="http://en.wikipedia.org/wiki/SPNEGO" target="_blank">SPNEGO</a> authentication.
  * It allows servlet containers like Tomcat and JBoss to transparently/silently
  * authenticate HTTP clients like Microsoft Internet Explorer (MSIE).
  * 
@@ -165,8 +165,13 @@ import org.ietf.jgss.GSSException;
  *  &lt;/body&gt;
  *  &lt;/html&gt;
  *  </pre>
- *  </p>
- *  
+ * </p>
+ *
+ * <p>
+ * Take a look at the <a href="http://spnego.sourceforge.net/reference_docs.html" 
+ * target="_blank">reference docs</a> for other configuration parameters.
+ * </p>
+ * 
  * <p>See more usage examples at 
  * <a href="http://spnego.sourceforge.net" target="_blank">http://spnego.sourceforge.net</a>
  * </p>
