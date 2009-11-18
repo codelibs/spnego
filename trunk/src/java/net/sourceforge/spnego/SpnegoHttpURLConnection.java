@@ -18,8 +18,10 @@
 
 package net.sourceforge.spnego;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.PrivilegedActionException;
@@ -28,6 +30,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -55,7 +59,7 @@ import org.ietf.jgss.GSSException;
  * A krb5.conf and a login.conf is required when using this class. Take a 
  * look at the <a href="http://spnego.sourceforge.net" target="_blank">spnego.sourceforge.net</a> 
  * documentation for an example krb5.conf and login.conf file. 
- * Also, you must provide a keytab file, a username and password, or allowtgtsessionkey.
+ * Also, you must provide a keytab file, or a username and password, or allowtgtsessionkey.
  * </p>
  * 
  * <p>
@@ -106,7 +110,16 @@ import org.ietf.jgss.GSSException;
  * </pre>
  * </p>
  * 
- * @see SpnegoHttpFilter
+ * <p>
+ * To see a working example and instructions on how to use a keytab, take 
+ * a look at the <a href="http://spnego.sourceforge.net/client_keytab.html"
+ * target="_blank">creating a client keytab</a> example.
+ * </p>
+ * 
+ * <p>
+ * Finally, the {@link SpnegoSOAPConnection} class is another example of a class 
+ * that uses this class.
+ * <p>
  * 
  * @author Darwin V. Felix
  * 
@@ -114,6 +127,9 @@ import org.ietf.jgss.GSSException;
 public final class SpnegoHttpURLConnection {
 
     private static final Logger LOGGER = Logger.getLogger(Constants.LOGGER_NAME);
+    
+    /** GSSContext is not thread-safe. */
+    private static final Lock LOCK = new ReentrantLock();
     
     private static final byte[] EMPTY_BYTE = new byte[0];
 
@@ -147,7 +163,7 @@ public final class SpnegoHttpURLConnection {
      * Client's credentials. If username/password or LoginContext is provided 
      * (in constructor) then this field will always be null.
      */
-    private final transient GSSCredential credential;
+    private transient GSSCredential credential;
 
     /** 
      * Flag to determine if GSSContext has been established. Users of this 
@@ -260,6 +276,12 @@ public final class SpnegoHttpURLConnection {
      * Opens a communications link to the resource referenced by 
      * this URL, if such a connection has not already been established.
      * 
+     * <p>
+     * This implementation simply calls this objects 
+     * connect(URL, ByteArrayOutputStream) method but passing in a null 
+     * for the second argument.
+     * </p>
+     * 
      * @param url 
      * @return an HttpURLConnection object
      * @throws GSSException 
@@ -271,23 +293,47 @@ public final class SpnegoHttpURLConnection {
      */
     public HttpURLConnection connect(final URL url)
         throws GSSException, PrivilegedActionException, IOException {
+        
+        return this.connect(url, null);
+    }
+
+    /**
+     * Opens a communications link to the resource referenced by 
+     * this URL, if such a connection has not already been established.
+     * 
+     * @param url 
+     * @param dooutput optional message/payload to send to server
+     * @return an HttpURLConnection object
+     * @throws GSSException 
+     * @throws PrivilegedActionException 
+     * @throws IOException 
+     * @throws LoginException 
+     * 
+     * @see java.net.URLConnection#connect()
+     */
+    public HttpURLConnection connect(final URL url, final ByteArrayOutputStream dooutput)
+        throws GSSException, PrivilegedActionException, IOException {
 
         assertNotConnected();
 
         GSSContext context = null;
         
         try {
-            context = this.getGSSContext(url);
-            context.requestMutualAuth(true);
-            context.requestConf(true);
-            context.requestInteg(true);
-            context.requestCredDeleg(this.reqCredDeleg);
-
             byte[] data = null;
             
-            synchronized (GSSCredential.class) {
+            SpnegoHttpURLConnection.LOCK.lock();
+            try {
+                context = this.getGSSContext(url);
+                context.requestMutualAuth(true);
+                context.requestConf(true);
+                context.requestInteg(true);
+                context.requestReplayDet(true);
+                context.requestSequenceDet(true);
+                context.requestCredDeleg(this.reqCredDeleg);
+                
                 data = context.initSecContext(EMPTY_BYTE, 0, 0);
-                GSSCredential.class.notify();
+            } finally {
+                SpnegoHttpURLConnection.LOCK.unlock();
             }
             
             this.conn = (HttpURLConnection) url.openConnection();
@@ -307,6 +353,11 @@ public final class SpnegoHttpURLConnection {
             this.conn.setRequestProperty(Constants.AUTHZ_HEADER
                 , Constants.NEGOTIATE_HEADER + ' ' + Base64.encode(data));
 
+            if (null != dooutput && dooutput.size() > 0) {
+                this.conn.setDoOutput(true);
+                dooutput.writeTo(this.conn.getOutputStream());
+            }
+
             this.conn.connect();
 
             final SpnegoAuthScheme scheme = SpnegoProvider.getAuthScheme(
@@ -320,14 +371,16 @@ public final class SpnegoHttpURLConnection {
                 data = scheme.getToken();
     
                 if (Constants.NEGOTIATE_HEADER.equalsIgnoreCase(scheme.getScheme())) {
-                    synchronized (GSSCredential.class) {
+                    SpnegoHttpURLConnection.LOCK.lock();
+                    try {
                         data = context.initSecContext(data, 0, data.length);
-                        GSSCredential.class.notify();
+                    } finally {
+                        SpnegoHttpURLConnection.LOCK.unlock();
                     }
 
                     // TODO : support context loops where i>1
-                    if (null != data && data.length > 0) {
-                        LOGGER.warning("Server requested context loop.");
+                    if (null != data) {
+                        LOGGER.warning("Server requested context loop: " + data.length);
                     }
                     
                 } else {
@@ -339,20 +392,11 @@ public final class SpnegoHttpURLConnection {
             }
         } finally {
             this.dispose(context);
-            context = null;
         }
 
         return this.conn;
     }
-    
-    /**
-     * Logout the LoginContext instance and call dispose() on GSSCredential 
-     * if autoDisposeCreds is set to true.
-     */
-    private void dispose() {
-        this.dispose(null);
-    }
-    
+
     /**
      * Logout the LoginContext instance, and call dispose() on GSSCredential 
      * if autoDisposeCreds is set to true, and call dispose on the passed-in 
@@ -361,7 +405,12 @@ public final class SpnegoHttpURLConnection {
     private void dispose(final GSSContext context) {
         if (null != context) {
             try {
-                context.dispose();
+                SpnegoHttpURLConnection.LOCK.lock();
+                try {
+                    context.dispose();
+                } finally {
+                    SpnegoHttpURLConnection.LOCK.unlock();
+                }
             } catch (GSSException gsse) {
                 LOGGER.log(Level.WARNING, "call to dispose context failed.", gsse);
             }
@@ -390,7 +439,7 @@ public final class SpnegoHttpURLConnection {
      * @see java.net.HttpURLConnection#disconnect()
      */
     public void disconnect() {
-        this.dispose();
+        this.dispose(null);
         this.requestProperties.clear();
         this.connected = false;
         if (null != this.conn) {
@@ -403,7 +452,7 @@ public final class SpnegoHttpURLConnection {
      * 
      * @return true if GSSContext has been established, false otherwise.
      */
-    public boolean iscntxtEstablished() {
+    public boolean isContextEstablished() {
         return this.cntxtEstablished;
     }
 
@@ -464,21 +513,32 @@ public final class SpnegoHttpURLConnection {
     private GSSContext getGSSContext(final URL url) throws GSSException
         , PrivilegedActionException {
 
-        final GSSCredential creds;
-        
         if (null == this.credential) {
             if (null == this.loginContext) {
                 throw new IllegalStateException(
                         "GSSCredential AND LoginContext NOT initialized");
                 
             } else {
-                creds = SpnegoProvider.getClientCredential(this.loginContext.getSubject());
+                this.credential = SpnegoProvider.getClientCredential(
+                        this.loginContext.getSubject());
             }
-        } else {
-            creds = this.credential;
         }
         
-        return SpnegoProvider.getGSSContext(creds, url);
+        return SpnegoProvider.getGSSContext(this.credential, url);
+    }
+    
+    /**
+     * Returns an error stream that reads from this open connection.
+     * 
+     * @return error stream that reads from this open connection
+     * @throws IOException 
+     * 
+     * @see java.net.HttpURLConnection#getErrorStream()
+     */
+    public InputStream getErrorStream() throws IOException {
+        assertConnected();
+
+        return this.conn.getInputStream();
     }
 
     /**
@@ -530,6 +590,20 @@ public final class SpnegoHttpURLConnection {
         assertConnected();
 
         return this.conn.getInputStream();
+    }
+    
+    /**
+     * Returns an output stream that writes to this open connection.
+     * 
+     * @return output stream that writes to this connections
+     * @throws IOException
+     * 
+     * @see java.net.HttpURLConnection#getOutputStream()
+     */
+    public OutputStream getOutputStream() throws IOException {
+        assertConnected();
+        
+        return this.conn.getOutputStream();
     }
 
     /**

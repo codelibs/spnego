@@ -20,6 +20,8 @@ package net.sourceforge.spnego;
 
 import java.io.IOException;
 import java.security.PrivilegedActionException;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -49,8 +51,9 @@ import org.ietf.jgss.GSSManager;
  * 
  * <p>
  * Basic Authentication must be enabled through the filter configuration. See
- * the <a href="http://spnego.sourceforge.net" target="_blank">http://spnego.sourceforge.net</a>
- * documentation for an example configuration.
+ * an example web.xml configuration in the <a href="http://spnego.sourceforge.net/spnego_tomcat.html" 
+ * target="_blank">installing on tomcat</a> documentation or the 
+ * {@link SpnegoHttpFilter} javadoc. 
  * </p>
  * 
  * <p>
@@ -62,12 +65,20 @@ import org.ietf.jgss.GSSManager;
  * </p>
  * 
  * <p>
- * NTLM tokens are NOT supported however it is still possible to avoid an error 
- * by downgrading the authentication from Negotiate: NTLM to Basic Auth.
- * <br />
- * See the <a href="http://spnego.sourceforge.net" target="_blank">spnego.sourceforge.net</a>
- * documentation on how to configure the web.xml to prompt request that are 
- * being made using NTLM.
+ * NTLM tokens are NOT supported. However it is still possible to avoid an error 
+ * being returned by downgrading the authentication from Negotiate NTLM to Basic Auth.
+ * </p>
+ * 
+ * <p>
+ * See the <a href="http://spnego.sourceforge.net/reference_docs.html" 
+ * target="_blank">reference docs</a> on how to configure the web.xml to prompt 
+ * when if a request is being made using NTLM.
+ * </p>
+ * 
+ * <p>
+ * Finally, to see a working example and instructions on how to use a keytab, take 
+ * a look at the <a href="http://spnego.sourceforge.net/server_keytab.html"
+ * target="_blank">creating a server keytab</a> example.
  * </p>
  * 
  * @author Darwin V. Felix
@@ -76,6 +87,12 @@ import org.ietf.jgss.GSSManager;
 final class SpnegoAuthenticator {
 
     private static final Logger LOGGER = Logger.getLogger(Constants.LOGGER_NAME);
+    
+    /** GSSContext is not thread-safe. */
+    private static final Lock LOCK = new ReentrantLock();
+    
+    /** Default GSSManager. */
+    private static final GSSManager MANAGER = GSSManager.getInstance();
     
     /** Flag to indicate if BASIC Auth is allowed. */
     private final transient boolean allowBasic;
@@ -140,7 +157,7 @@ final class SpnegoAuthenticator {
                 this.loginContext.getSubject());
 
         this.serverPrincipal = new KerberosPrincipal(
-                this.serverCredentials.getName().toString()); 
+                this.serverCredentials.getName().toString());
     }
     
     /**
@@ -223,6 +240,13 @@ final class SpnegoAuthenticator {
      * </p>
      */
     protected void dispose() {
+        if (null != this.serverCredentials) {
+            try {
+                this.serverCredentials.dispose();
+            } catch (GSSException e) {
+                LOGGER.log(Level.WARNING, "Dispose failed.", e);
+            }
+        }
         if (null != this.loginContext) {
             try {
                 this.loginContext.logout();
@@ -339,13 +363,14 @@ final class SpnegoAuthenticator {
         GSSCredential delegCred = null;
         
         try {
-            context = GSSManager.getInstance().createContext(this.serverCredentials);
-
             byte[] token = null;
             
-            synchronized (GSSCredential.class) {
+            SpnegoAuthenticator.LOCK.lock();
+            try {
+                context = SpnegoAuthenticator.MANAGER.createContext(this.serverCredentials);
                 token = context.acceptSecContext(gss, 0, gss.length);
-                GSSCredential.class.notify();
+            } finally {
+                SpnegoAuthenticator.LOCK.unlock();
             }
 
             if (null == token) {
@@ -367,10 +392,15 @@ final class SpnegoAuthenticator {
             if (this.allowDelegation && context.getCredDelegState()) {
                 delegCred = context.getDelegCred();
             }
-            
+
         } finally {
             if (null != context) {
-                context.dispose();
+                SpnegoAuthenticator.LOCK.lock();
+                try {
+                    context.dispose();
+                } finally {
+                    SpnegoAuthenticator.LOCK.unlock();
+                }
             }
         }
 
