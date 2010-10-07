@@ -1,5 +1,5 @@
 /** 
- * Copyright (C) 2009 "Darwin V. Felix" <dfelix@users.sourceforge.net>
+ * Copyright (C) 2009 "Darwin V. Felix" <darwinfelix@users.sourceforge.net>
  * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,7 +26,9 @@ import java.security.PrivilegedActionException;
 
 import javax.security.auth.login.LoginException;
 import javax.xml.soap.MessageFactory;
+import javax.xml.soap.MimeHeaders;
 import javax.xml.soap.SOAPConnection;
+import javax.xml.soap.SOAPConstants;
 import javax.xml.soap.SOAPException;
 import javax.xml.soap.SOAPMessage;
 
@@ -166,16 +168,34 @@ public class SpnegoSOAPConnection extends SOAPConnection {
         final ByteArrayOutputStream bos = new ByteArrayOutputStream();
         
         try {
-            this.conn.addRequestProperty("Accept", "text/xml");
-            this.conn.addRequestProperty("Content-Type", "text/xml; charset=utf-8");
-            this.conn.addRequestProperty("Cache-Control", "no-cache");
-            this.conn.addRequestProperty("Pragma", "no-cache");
+            final MimeHeaders headers = request.getMimeHeaders();
+            
+            // build the Content-Type HTTP header parameter if not defined
+            if (null == headers.getHeader("Content-Type")) {
+                final StringBuilder contentType = new StringBuilder();
+                final String[] soapAction = headers.getHeader("SOAPAction");
+                
+                if (null == soapAction) {
+                    contentType.append("application/soap+xml; charset=UTF-8;");
+                } else {
+                    if (soapAction.length > 1) {
+                        throw new IllegalArgumentException("SOAPAction defined more than once.");
+                    }
+
+                    contentType.append("text/xml; charset=UTF-8;");
+                    this.conn.addRequestProperty("SOAPAction", soapAction[0]);
+                }
+
+                // not defined as a MIME header but we need it as an HTTP header parameter
+                this.conn.addRequestProperty("Content-Type", contentType.toString());
+            }
 
             request.writeTo(bos);
             
             this.conn.connect(new URL(endpoint.toString()), bos);
             
-            final MessageFactory factory = MessageFactory.newInstance();
+            final MessageFactory factory = MessageFactory.newInstance(
+                    SOAPConstants.SOAP_1_2_PROTOCOL);
             
             try {
                 message = factory.createMessage(null, this.conn.getInputStream());
