@@ -18,8 +18,13 @@
 
 package net.sourceforge.spnego;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.security.PrivilegedActionException;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.Map;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
@@ -29,6 +34,8 @@ import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.kerberos.KerberosPrincipal;
 import javax.security.auth.login.LoginContext;
 import javax.security.auth.login.LoginException;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
@@ -45,8 +52,8 @@ import org.ietf.jgss.GSSManager;
  * authentication.
  * 
  * <p>
- * Package scope is deliberate; this Class MUST NOT be used/referenced directly
- * outside of this package.
+ * <strike>Package scope is deliberate; this Class MUST NOT be used/referenced directly
+ * outside of this package.<strike> <b>Be cautious about who you give a reference to.</b>
  * </p>
  * 
  * <p>
@@ -84,7 +91,7 @@ import org.ietf.jgss.GSSManager;
  * @author Darwin V. Felix
  * 
  */
-final class SpnegoAuthenticator {
+public final class SpnegoAuthenticator {
 
     private static final Logger LOGGER = Logger.getLogger(Constants.LOGGER_NAME);
     
@@ -161,6 +168,72 @@ final class SpnegoAuthenticator {
     }
     
     /**
+     * Create an authenticator for SPNEGO and/or BASIC authentication. For third-party 
+     * code/frameworks that want to authenticate via their own filter/valve/code/etc.
+     * 
+     * <p>
+     * The ExampleSpnegoAuthenticatorValve.java demonstrates a working example of 
+     * how to use this constructor.
+     * </p>
+     * 
+     * <p>
+     * Example of some Map keys and values: <br />
+     * <code>
+     * 
+     * Map map = new HashMap();
+     * map.put("spnego.krb5.conf", "krb5.conf");
+     * map.put("spnego.allow.basic", "true");
+     * map.put("spnego.preauth.username", "dfelix");
+     * map.put("spnego.preauth.password", "myp@s5");
+     * ...
+     * 
+     * SpnegoAuthenticator authenticator = new SpnegoAuthenticator(map);
+     * ...
+     * </code>
+     * </p>
+     * 
+     * @param config
+     * @throws LoginException
+     * @throws GSSException
+     * @throws PrivilegedActionException
+     * @throws FileNotFoundException
+     * @throws URISyntaxException
+     */
+    public SpnegoAuthenticator(final Map<String, String> config) 
+        throws LoginException, GSSException, PrivilegedActionException
+        , FileNotFoundException, URISyntaxException {
+
+        this(SpnegoFilterConfig.getInstance(new FilterConfig() {
+
+            private final Map<String, String> map = Collections.unmodifiableMap(config);
+            
+            @Override
+            public String getFilterName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String getInitParameter(final String param) {
+                if (null == map.get(param)) {
+                    throw new NullPointerException("Config missing param value for: " + param);
+                }
+                return map.get(param);
+            }
+
+            @SuppressWarnings("rawtypes")
+            @Override
+            public Enumeration getInitParameterNames() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ServletContext getServletContext() {
+                throw new UnsupportedOperationException();
+            }
+        }));
+    }
+    
+    /**
      * Returns the KerberosPrincipal of the user/client making the HTTP request.
      * 
      * <p>
@@ -178,7 +251,7 @@ final class SpnegoAuthenticator {
      * @throws GSSException 
      * @throws IOException 
      */
-    protected SpnegoPrincipal authenticate(final HttpServletRequest req
+    public SpnegoPrincipal authenticate(final HttpServletRequest req
         , final SpnegoHttpServletResponse resp) throws GSSException
         , IOException {
         
@@ -239,7 +312,7 @@ final class SpnegoAuthenticator {
      * dispose() as it indicates that this class will no longer be used.
      * </p>
      */
-    protected void dispose() {
+    public void dispose() {
         if (null != this.serverCredentials) {
             try {
                 this.serverCredentials.dispose();

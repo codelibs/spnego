@@ -169,34 +169,45 @@ public class SpnegoSOAPConnection extends SOAPConnection {
         
         try {
             final MimeHeaders headers = request.getMimeHeaders();
+            final String[] contentType = headers.getHeader("Content-Type");
+            final String[] soapAction = headers.getHeader("SOAPAction");
             
             // build the Content-Type HTTP header parameter if not defined
-            if (null == headers.getHeader("Content-Type")) {
-                final StringBuilder contentType = new StringBuilder();
-                final String[] soapAction = headers.getHeader("SOAPAction");
-                
+            if (null == contentType) {
+                final StringBuilder header = new StringBuilder();
+    
                 if (null == soapAction) {
-                    contentType.append("application/soap+xml; charset=UTF-8;");
+                    header.append("application/soap+xml; charset=UTF-8;");
                 } else {
-                    if (soapAction.length > 1) {
-                        throw new IllegalArgumentException("SOAPAction defined more than once.");
-                    }
-
-                    contentType.append("text/xml; charset=UTF-8;");
-                    this.conn.addRequestProperty("SOAPAction", soapAction[0]);
+                    header.append("text/xml; charset=UTF-8;");
                 }
-
+    
                 // not defined as a MIME header but we need it as an HTTP header parameter
-                this.conn.addRequestProperty("Content-Type", contentType.toString());
+                this.conn.addRequestProperty("Content-Type", header.toString());
+            } else {
+                if (contentType.length > 1) {
+                    throw new IllegalArgumentException("Content-Type defined more than once.");
+                }
+                
+                // user specified as a MIME header so add it as an HTTP header parameter
+                this.conn.addRequestProperty("Content-Type", contentType[0]);
             }
-
+            
+            // specify SOAPAction as an HTTP header parameter
+            if (null != soapAction) {
+                if (soapAction.length > 1) {
+                    throw new IllegalArgumentException("SOAPAction defined more than once.");
+                }
+                this.conn.addRequestProperty("SOAPAction", soapAction[0]);
+            }
+    
             request.writeTo(bos);
             
             this.conn.connect(new URL(endpoint.toString()), bos);
             
             final MessageFactory factory = MessageFactory.newInstance(
                     SOAPConstants.SOAP_1_2_PROTOCOL);
-            
+        
             try {
                 message = factory.createMessage(null, this.conn.getInputStream());
             } catch (IOException e) {
