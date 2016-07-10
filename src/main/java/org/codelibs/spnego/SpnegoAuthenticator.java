@@ -51,8 +51,8 @@ import org.ietf.jgss.GSSManager;
  * authentication.
  * 
  * <p>
- * <strike>Package scope is deliberate; this Class MUST NOT be used/referenced directly
- * outside of this package.<strike> <b>Be cautious about who you give a reference to.</b>
+ * Package scope is deliberate; this Class MUST NOT be used/referenced directly
+ * outside of this package. <b>Be cautious about who you give a reference to.</b>
  * </p>
  * 
  * <p>
@@ -176,7 +176,7 @@ public final class SpnegoAuthenticator {
      * </p>
      * 
      * <p>
-     * Example of some Map keys and values: <br />
+     * Example of some Map keys and values: <br>
      * <code>
      * 
      * Map map = new HashMap();

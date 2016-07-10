@@ -187,7 +187,6 @@ public final class SpnegoProvider {
      * @param url HTTP address of server (used for constructing a {@link GSSName}).
      * @return GSSContext 
      * @throws GSSException
-     * @throws PrivilegedActionException
      */
     public static GSSContext getGSSContext(final GSSCredential creds, final URL url) 
         throws GSSException {

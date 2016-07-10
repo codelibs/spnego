@@ -40,19 +40,19 @@ import org.ietf.jgss.GSSException;
  * 
  * <p>
  * The idea for this class is to replace code that looks like this...
+ * </p>
  * <pre>
  *  final SOAPConnectionFactory soapConnectionFactory =
  *      SOAPConnectionFactory.newInstance();
  *  conn = soapConnectionFactory.createConnection();
  * </pre>
- * </p>
  * 
  * <p>
  * with code that looks like this...
+ * </p>
  * <pre>
  *  conn = new SpnegoSOAPConnection("spnego-client", "dfelix", "myp@s5");
  * </pre>
- * </p>
  * 
  * <p><b>Example:</b></p>
  * <pre>

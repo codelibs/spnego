@@ -50,7 +50,7 @@ import org.ietf.jgss.GSSException;
  * </p>
  * 
  * <p>
- * <b>NTLM</b><br />
+ * <b>NTLM</b><br>
  * MSIE has the ability to negotiate NTLM password hashes over an HTTP session 
  * using Base 64 encoded NTLMSSP messages. This is a staple feature of Microsoft's 
  * Internet Information Server (IIS). Open source libraries exists (ie. jCIFS) that 
@@ -63,7 +63,7 @@ import org.ietf.jgss.GSSException;
  * </p>
  * 
  * <p>
- * <b>Kerberos/SPNEGO</b><br />
+ * <b>Kerberos/SPNEGO</b><br>
  * Kerberos is an authentication protocol that is implemented in AD. The protocol 
  * does not negotiate passwords between a client and a server but rather uses tokens 
  * to securely prove/authenticate to one another over an un-secure network.
@@ -72,14 +72,14 @@ import org.ietf.jgss.GSSException;
  * <p>
  * <b><code>SpnegoHttpFilter</code> does support Kerberos but through the 
  * pseudo-mechanism <code>SPNEGO</code></b>.
+ * </p>
  * <ul>
  * <li><a href="http://en.wikipedia.org/wiki/SPNEGO" target="_blank">Wikipedia: SPNEGO</a></li>
  * <li><a href="http://www.ietf.org/rfc/rfc4178.txt" target="_blank">IETF RFC: 4178</a></li>
  * </ul>
- * </p>
  * 
  * <p>
- * <b>Localhost Support</b><br />
+ * <b>Localhost Support</b><br>
  * The Kerberos protocol requires that a service must have a Principal Name (SPN) 
  * specified. However, there are some use-cases where it may not be practical to 
  * specify an SPN (ie. Tomcat running on a developer's machine). The DNS 
@@ -91,7 +91,6 @@ import org.ietf.jgss.GSSException;
  * 
  * <p>Here's an example configuration:</p>
  * 
- * <p>
  * <pre><code>  &lt;filter&gt;
  *      &lt;filter-name&gt;SpnegoHttpFilter&lt;/filter-name&gt;
  *      &lt;filter-class&gt;org.codelibs.spnego.SpnegoHttpFilter&lt;/filter-class&gt;
@@ -152,11 +151,10 @@ import org.ietf.jgss.GSSException;
  *      &lt;/init-param&gt;
  *  &lt;/filter&gt;
  *</code></pre>
- * </p>
  * 
  * <p><b>Example usage on web page</b></p>
  * 
- * <p><pre>  &lt;html&gt;
+ * <pre>  &lt;html&gt;
  *  &lt;head&gt;
  *      &lt;title&gt;Hello SPNEGO Example&lt;/title&gt;
  *  &lt;/head&gt;
@@ -165,7 +163,6 @@ import org.ietf.jgss.GSSException;
  *  &lt;/body&gt;
  *  &lt;/html&gt;
  *  </pre>
- * </p>
  *
  * <p>
  * Take a look at the <a href="http://spnego.sourceforge.net/reference_docs.html" 
@@ -350,10 +347,12 @@ public final class SpnegoHttpFilter implements Filter {
          * here.</p>
          * 
          * <p>By default, Java looks for the file in these locations and order:
+         * </p>
+         * <ul>
          * <li>System Property (java.security.krb5.conf)</li>
          * <li>%JAVA_HOME%/lib/security/krb5.conf</li>
          * <li>%WINDOWS_ROOT%/krb5.ini</li>
-         * </p>
+         * </ul>
          */
         public static final String KRB5_CONF = "spnego.krb5.conf";
         

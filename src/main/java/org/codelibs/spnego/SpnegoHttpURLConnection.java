@@ -63,6 +63,7 @@ import org.ietf.jgss.GSSException;
  * 
  * <p>
  * Example usage (username/password):
+ * </p>
  * <pre>
  *     public static void main(final String[] args) throws Exception {
  *         System.setProperty("java.security.krb5.conf", "krb5.conf");
@@ -84,11 +85,11 @@ import org.ietf.jgss.GSSException;
  *         }
  *     }
  * </pre>
- * </p>
  * 
  * <p>
  * Alternatively, if the server supports HTTP Basic Authentication, this Class 
  * is NOT needed and instead you can do something like the following:
+ * </p>
  * <pre>
  *     public static void main(final String[] args) throws Exception {
  *         final String creds = "dfelix:myp@s5";
@@ -107,7 +108,6 @@ import org.ietf.jgss.GSSException;
  *         System.out.println("Response Code:" + conn.getResponseCode());
  *     }
  * </pre>
- * </p>
  * 
  * <p>
  * To see a working example and instructions on how to use a keytab, take 
@@ -286,7 +286,6 @@ public final class SpnegoHttpURLConnection {
      * @throws GSSException 
      * @throws PrivilegedActionException 
      * @throws IOException 
-     * @throws LoginException 
      * 
      * @see java.net.URLConnection#connect()
      */
@@ -306,7 +305,6 @@ public final class SpnegoHttpURLConnection {
      * @throws GSSException 
      * @throws PrivilegedActionException 
      * @throws IOException 
-     * @throws LoginException 
      * 
      * @see java.net.URLConnection#connect()
      */
