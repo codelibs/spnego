@@ -16,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-package net.sourceforge.spnego;
+package org.codelibs.spnego;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -94,7 +94,7 @@ import org.ietf.jgss.GSSException;
  * <p>
  * <pre><code>  &lt;filter&gt;
  *      &lt;filter-name&gt;SpnegoHttpFilter&lt;/filter-name&gt;
- *      &lt;filter-class&gt;net.sourceforge.spnego.SpnegoHttpFilter&lt;/filter-class&gt;
+ *      &lt;filter-class&gt;org.codelibs.spnego.SpnegoHttpFilter&lt;/filter-class&gt;
  *      
  *      &lt;init-param&gt;
  *          &lt;param-name&gt;spnego.allow.basic&lt;/param-name&gt;

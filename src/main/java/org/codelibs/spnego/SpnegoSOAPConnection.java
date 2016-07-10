@@ -16,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-package net.sourceforge.spnego;
+package org.codelibs.spnego;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

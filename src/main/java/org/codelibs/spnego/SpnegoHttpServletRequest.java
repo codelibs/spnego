@@ -16,15 +16,14 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-package net.sourceforge.spnego;
+package org.codelibs.spnego;
 
 import java.security.Principal;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletRequestWrapper;
 
-import net.sourceforge.spnego.SpnegoHttpFilter.Constants;
-
+import org.codelibs.spnego.SpnegoHttpFilter.Constants;
 import org.ietf.jgss.GSSCredential;
 
 /**

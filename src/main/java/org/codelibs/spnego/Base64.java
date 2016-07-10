@@ -1,4 +1,4 @@
-package net.sourceforge.spnego;
+package org.codelibs.spnego;
 
 /* Encodes and decodes to and from Base64 notation.
  * Copyright (C) 2003 "Eric Glass" <jcifs at samba dot org>

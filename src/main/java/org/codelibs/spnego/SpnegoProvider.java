@@ -16,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-package net.sourceforge.spnego;
+package org.codelibs.spnego;
 
 import java.io.IOException;
 import java.net.URL;
@@ -33,8 +33,7 @@ import javax.security.auth.callback.PasswordCallback;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import net.sourceforge.spnego.SpnegoHttpFilter.Constants;
-
+import org.codelibs.spnego.SpnegoHttpFilter.Constants;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;

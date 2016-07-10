@@ -16,7 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-package net.sourceforge.spnego;
+package org.codelibs.spnego;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -39,8 +39,7 @@ import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import net.sourceforge.spnego.SpnegoHttpFilter.Constants;
-
+import org.codelibs.spnego.SpnegoHttpFilter.Constants;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
@@ -220,9 +219,8 @@ public final class SpnegoAuthenticator {
                 return map.get(param);
             }
 
-            @SuppressWarnings("rawtypes")
             @Override
-            public Enumeration getInitParameterNames() {
+            public Enumeration<String> getInitParameterNames() {
                 throw new UnsupportedOperationException();
             }
 
