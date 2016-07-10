@@ -22,6 +22,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.security.PrivilegedActionException;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.security.auth.login.LoginException;
@@ -176,31 +177,22 @@ import org.ietf.jgss.GSSException;
  * @author Darwin V. Felix
  * 
  */
-public final class SpnegoHttpFilter implements Filter {
+public class SpnegoHttpFilter implements Filter {
 
     private static final Logger LOGGER = Logger.getLogger(Constants.LOGGER_NAME);
 
     /** Object for performing Basic and SPNEGO authentication. */
-    private transient SpnegoAuthenticator authenticator = null;
+    protected transient SpnegoAuthenticator authenticator = null;
 
     public void init(final FilterConfig filterConfig) throws ServletException {
-
         try {
             // set some System properties
             final SpnegoFilterConfig config = SpnegoFilterConfig.getInstance(filterConfig);
             
             // pre-authenticate
             this.authenticator = new SpnegoAuthenticator(config);
-        } catch (final LoginException le) {
-            throw new ServletException(le);
-        } catch (final GSSException gsse) {
-            throw new ServletException(gsse);
-        } catch (final PrivilegedActionException pae) {
-            throw new ServletException(pae);
-        } catch (final FileNotFoundException fnfe) {
-            throw new ServletException(fnfe);
-        } catch (final URISyntaxException uri) {
-            throw new ServletException(uri);
+        } catch (final LoginException | GSSException | PrivilegedActionException | FileNotFoundException | URISyntaxException e) {
+            throw new ServletException(e);
         }
     }
 
@@ -242,9 +234,16 @@ public final class SpnegoHttpFilter implements Filter {
             return;
         }
 
-        LOGGER.fine("principal=" + principal);
+        if (LOGGER.isLoggable(Level.FINE)) {
+            LOGGER.fine("principal=" + principal);
+        }
 
-        chain.doFilter(new SpnegoHttpServletRequest(httpRequest, principal), response);
+        processRequest(new SpnegoHttpServletRequest(httpRequest, principal), response, chain);
+    }
+
+    protected void processRequest(final SpnegoHttpServletRequest request, final ServletResponse response, final FilterChain chain)
+            throws IOException, ServletException {
+        chain.doFilter(request, response);
     }
     
     /**

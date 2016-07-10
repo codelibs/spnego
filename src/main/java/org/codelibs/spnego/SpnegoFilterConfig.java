@@ -61,7 +61,7 @@ import org.codelibs.spnego.SpnegoHttpFilter.Constants;
  * @author Darwin V. Felix
  *
  */
-final class SpnegoFilterConfig { // NOPMD
+public class SpnegoFilterConfig { // NOPMD
     
     private static final Logger LOGGER = Logger.getLogger(Constants.LOGGER_NAME);
     
@@ -306,7 +306,7 @@ final class SpnegoFilterConfig { // NOPMD
      * @throws FileNotFoundException if login conf file not found
      * @throws URISyntaxException if path to login conf is bad
      */
-    static SpnegoFilterConfig getInstance(final FilterConfig config) 
+    public static SpnegoFilterConfig getInstance(final FilterConfig config) 
         throws FileNotFoundException, URISyntaxException {
         
         synchronized (SpnegoFilterConfig.class) {
