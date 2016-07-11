@@ -36,7 +36,7 @@ import org.codelibs.spnego.SpnegoHttpFilter.Constants;
  * Class that applies/enforces web.xml init params.
  * 
  * <p>These properties are set in the servlet's init params 
- * in the web.xml file.</>
+ * in the web.xml file.</p>
  * 
  * <p>This class also validates if a keyTab should be used 
  * and if all of the LoginModule options have been set.</p>
@@ -47,7 +47,7 @@ import org.codelibs.spnego.SpnegoHttpFilter.Constants;
  * target="_blank">creating a server keytab</a> example.
  * </p>
  * 
- * <p>The class should be used as a Singleton:<br />
+ * <p>The class should be used as a Singleton:<br>
  * <code>
  * SpnegoFilterConfig config = SpnegoFilterConfig.getInstance(filter);
  * </code>
