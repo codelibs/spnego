@@ -383,6 +383,7 @@ public final class SpnegoAuthenticator {
         } catch (LoginException le) {
             LOGGER.info(le.getMessage() + ": Login failed. username=" + username 
                     + "; password.hashCode()=" + password.hashCode());
+            LOGGER.log(Level.FINE, "Cause", le);
 
             resp.setHeader(Constants.AUTHN_HEADER, Constants.NEGOTIATE_HEADER);
             resp.addHeader(Constants.AUTHN_HEADER, Constants.BASIC_HEADER 
