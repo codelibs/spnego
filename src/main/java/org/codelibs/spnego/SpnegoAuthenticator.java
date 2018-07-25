@@ -40,6 +40,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.codelibs.spnego.SpnegoHttpFilter.Constants;
+
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
@@ -51,8 +52,7 @@ import org.ietf.jgss.GSSManager;
  * authentication.
  * 
  * <p>
- * Package scope is deliberate; this Class MUST NOT be used/referenced directly
- * outside of this package. <b>Be cautious about who you give a reference to.</b>
+ * Be cautious about who you give a reference to.</b>
  * </p>
  * 
  * <p>
@@ -119,7 +119,7 @@ public final class SpnegoAuthenticator {
     private final transient String clientModuleName;
 
     /** Login Context server uses for pre-authentication. */
-    private  final transient LoginContext loginContext;
+    private final transient LoginContext loginContext;
 
     /** Credentials server uses for authenticating requests. */
     private final transient GSSCredential serverCredentials;
@@ -176,7 +176,7 @@ public final class SpnegoAuthenticator {
      * </p>
      * 
      * <p>
-     * Example of some Map keys and values: <br>
+     * Example of some Map keys and values: <br />
      * <code>
      * 
      * Map map = new HashMap();
@@ -219,8 +219,9 @@ public final class SpnegoAuthenticator {
                 return map.get(param);
             }
 
+            @SuppressWarnings("rawtypes")
             @Override
-            public Enumeration<String> getInitParameterNames() {
+            public Enumeration getInitParameterNames() {
                 throw new UnsupportedOperationException();
             }
 
@@ -229,6 +230,51 @@ public final class SpnegoAuthenticator {
                 throw new UnsupportedOperationException();
             }
         }));
+    }
+    
+    /**
+     * Create an authenticator for SPNEGO and/or BASIC authentication.
+     * 
+     * @param loginModuleName module named defined in login.conf
+     * @param config servlet filter initialization parameters
+     * @throws LoginException 
+     * @throws GSSException 
+     * @throws PrivilegedActionException 
+     */
+    public SpnegoAuthenticator(final String loginModuleName
+        , final SpnegoFilterConfig config) throws LoginException
+        , GSSException, PrivilegedActionException {
+
+        LOGGER.fine("loginModuleName=" + loginModuleName);
+
+        this.allowBasic = config.isBasicAllowed();
+        this.allowUnsecure = config.isUnsecureAllowed();  
+        this.clientModuleName = config.getClientLoginModule();
+        this.allowLocalhost = config.isLocalhostAllowed();
+        this.promptIfNtlm = config.downgradeNtlm();
+        this.allowDelegation = config.isDelegationAllowed();
+
+        final String username = config.getPreauthUsername();
+        final boolean hasUsername = null != username && !username.trim().isEmpty();
+        
+        if (hasUsername) {
+            this.loginContext = new LoginContext(loginModuleName
+                , SpnegoProvider.getUsernamePasswordHandler(username
+                    , config.getPreauthPassword()));
+        } else if (config.useKeyTab()) {
+            this.loginContext = new LoginContext(loginModuleName);
+        } else {
+            throw new IllegalArgumentException(
+                "Must provide a username/password or specify a keytab file");
+        }
+
+        this.loginContext.login();
+
+        this.serverCredentials = SpnegoProvider.getServerCredential(
+                this.loginContext.getSubject());
+
+        this.serverPrincipal = new KerberosPrincipal(
+                this.serverCredentials.getName().toString());
     }
     
     /**
@@ -252,18 +298,18 @@ public final class SpnegoAuthenticator {
     public SpnegoPrincipal authenticate(final HttpServletRequest req
         , final SpnegoHttpServletResponse resp) throws GSSException
         , IOException {
-        
-        // determine if we allow basic
-        final boolean basicSupported = 
-            this.allowBasic && (this.allowUnsecure || req.isSecure());
-        
-        // domain/realm of server
-        final String serverRealm = this.serverPrincipal.getRealm();
-        
+                
         // Skip auth if localhost
         if (this.allowLocalhost && this.isLocalhost(req)) {
             return doLocalhost();
         }
+
+        // domain/realm of server
+        final String serverRealm = this.serverPrincipal.getRealm();
+        
+        // determine if we allow basic
+        final boolean basicSupported = 
+            this.allowBasic && (this.allowUnsecure || req.isSecure());
         
         final SpnegoPrincipal principal;
         final SpnegoAuthScheme scheme = SpnegoProvider.negotiate(
@@ -282,7 +328,7 @@ public final class SpnegoAuthenticator {
             
         // BASIC scheme
         } else if (scheme.isBasicScheme()) {
-            // check if we allow Basic Auth
+            // check if we allow Basic Auth AND if can be un-secure
             if (basicSupported) {
                 principal = doBasicAuth(scheme, resp);
             } else {
@@ -321,8 +367,8 @@ public final class SpnegoAuthenticator {
         if (null != this.loginContext) {
             try {
                 this.loginContext.logout();
-            } catch (LoginException le) {
-                LOGGER.log(Level.WARNING, "Logout failed.", le);
+            } catch (LoginException lex) {
+                LOGGER.log(Level.WARNING, "Logout failed.", lex);
             }
         }
     }
@@ -380,10 +426,8 @@ public final class SpnegoAuthenticator {
                     + this.serverPrincipal.getRealm()
                     , KerberosPrincipal.KRB_NT_PRINCIPAL);
 
-        } catch (LoginException le) {
-            LOGGER.info(le.getMessage() + ": Login failed. username=" + username 
-                    + "; password.hashCode()=" + password.hashCode());
-            LOGGER.log(Level.FINE, "Cause", le);
+        } catch (LoginException lex) {
+            LOGGER.fine(lex.getMessage() + ": Login failed. username=" + username);
 
             resp.setHeader(Constants.AUTHN_HEADER, Constants.NEGOTIATE_HEADER);
             resp.addHeader(Constants.AUTHN_HEADER, Constants.BASIC_HEADER 
@@ -435,7 +479,7 @@ public final class SpnegoAuthenticator {
         GSSCredential delegCred = null;
         
         try {
-            byte[] token = null;
+            final byte[] token;
             
             SpnegoAuthenticator.LOCK.lock();
             try {
@@ -478,6 +522,10 @@ public final class SpnegoAuthenticator {
 
         return new SpnegoPrincipal(principal, KerberosPrincipal.KRB_NT_PRINCIPAL, delegCred);
     }
+    
+    public String getServerRealm() {
+        return this.serverPrincipal.getRealm();
+    }
 
     /**
      * Returns true if HTTP request is from the same host (localhost).
@@ -486,7 +534,13 @@ public final class SpnegoAuthenticator {
      * @return true if HTTP request is from the same host (localhost)
      */
     private boolean isLocalhost(final HttpServletRequest req) {
+        boolean isLocal = req.getLocalAddr().equals(req.getRemoteAddr());
         
-        return req.getLocalAddr().equals(req.getRemoteAddr());
+        if (!isLocal && "0.0.0.0".equals(req.getLocalAddr()) // NOPMD
+                && "0:0:0:0:0:0:0:1".equals(req.getRemoteAddr())) { // NOPMD
+            isLocal = true;
+        }
+        
+        return isLocal;
     }
 }

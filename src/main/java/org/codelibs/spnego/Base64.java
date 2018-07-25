@@ -1,5 +1,3 @@
-package org.codelibs.spnego;
-
 /* Encodes and decodes to and from Base64 notation.
  * Copyright (C) 2003 "Eric Glass" <jcifs at samba dot org>
  *
@@ -17,6 +15,8 @@ package org.codelibs.spnego;
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
+
+package org.codelibs.spnego;
 
 public final class Base64 {
 
@@ -49,7 +49,7 @@ public final class Base64 {
         int idx = 0;
         while (idx < length) {
             block = ((bytes[idx++] & 0xff) << 16) | ((bytes[idx++] & 0xff) << 8) 
-            | (bytes[idx++] & 0xff);
+                | (bytes[idx++] & 0xff);
             buffer.append(ALPHABET.charAt(block >>> 18));
             buffer.append(ALPHABET.charAt((block >>> 12) & 0x3f));
             buffer.append(ALPHABET.charAt((block >>> 6) & 0x3f));
@@ -88,15 +88,15 @@ public final class Base64 {
         final int pad = (string.charAt(length - 2) == '=') ? 2 
                 : (string.charAt(length - 1) == '=') ? 1 : 0;
         final int size = length * 3 / 4 - pad;
-        byte[] buffer = new byte[size];
+        final byte[] buffer = new byte[size];
         int block;
         int idx = 0;
         int index = 0;
         while (idx < length) {
             block = (ALPHABET.indexOf(string.charAt(idx++)) & 0xff) << 18 
-            | (ALPHABET.indexOf(string.charAt(idx++)) & 0xff) << 12 
-            | (ALPHABET.indexOf(string.charAt(idx++)) & 0xff) << 6 
-            | (ALPHABET.indexOf(string.charAt(idx++)) & 0xff);
+                | (ALPHABET.indexOf(string.charAt(idx++)) & 0xff) << 12 
+                | (ALPHABET.indexOf(string.charAt(idx++)) & 0xff) << 6 
+                | (ALPHABET.indexOf(string.charAt(idx++)) & 0xff);
             buffer[index++] = (byte) (block >>> 16);
             if (index < size) {
                 buffer[index++] = (byte) ((block >>> 8) & 0xff);

@@ -115,7 +115,31 @@ public final class SpnegoPrincipal implements Principal {
     
     @Override
     public int hashCode() {
-        return this.kerberosPrincipal.hashCode();
+        int result = 31;
+        result = 31 * result + this.kerberosPrincipal.hashCode();
+        result = 31 * result + this.delegatedCred.hashCode();
+        
+        return result;
+    }
+    
+    @Override
+    public boolean equals(final Object object) {
+        if (object == this) {
+            return true;
+        }
+        
+        if (!(object instanceof SpnegoPrincipal)) {
+            return false;
+        }
+        
+        final SpnegoPrincipal obj = (SpnegoPrincipal) object;
+        if (!this.kerberosPrincipal.equals(obj.kerberosPrincipal)
+                || !this.delegatedCred.equals(obj.delegatedCred)) {
+            
+            return false;
+        }
+        
+        return this.hashCode() == obj.hashCode();
     }
     
     @Override

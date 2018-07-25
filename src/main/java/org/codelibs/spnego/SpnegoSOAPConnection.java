@@ -18,67 +18,95 @@
 
 package org.codelibs.spnego;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.PrivilegedActionException;
+import java.util.logging.Logger;
 
 import javax.security.auth.login.LoginException;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.soap.MessageFactory;
 import javax.xml.soap.MimeHeaders;
 import javax.xml.soap.SOAPConnection;
-import javax.xml.soap.SOAPConstants;
 import javax.xml.soap.SOAPException;
 import javax.xml.soap.SOAPMessage;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.TransformerFactoryConfigurationError;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.codelibs.spnego.SpnegoHttpFilter.Constants;
 
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 /**
  * This class can be used to make SOAP calls to a protected SOAP Web Service.
  * 
  * <p>
  * The idea for this class is to replace code that looks like this...
- * </p>
  * <pre>
  *  final SOAPConnectionFactory soapConnectionFactory =
  *      SOAPConnectionFactory.newInstance();
  *  conn = soapConnectionFactory.createConnection();
  * </pre>
+ * </p>
  * 
  * <p>
  * with code that looks like this...
- * </p>
  * <pre>
  *  conn = new SpnegoSOAPConnection("spnego-client", "dfelix", "myp@s5");
  * </pre>
+ * </p>
  * 
  * <p><b>Example:</b></p>
  * <pre>
- * SOAPMessage response = null;
+ * System.setProperty("java.security.krb5.conf", "C:/Users/dfelix/krb5.conf");
+ * System.setProperty("java.security.auth.login.config", "C:/Users/dfelix/login.conf");
  * 
  * <b>final SpnegoSOAPConnection conn =
  *     new SpnegoSOAPConnection(this.module, this.kuser, this.kpass);</b>
  * 
  * try {
- *     final MessageFactory msgFactory = MessageFactory.newInstance();
- *     final SOAPMessage message = msgFactory.createMessage();
- * 
- *     final SOAPBody body = message.getSOAPBody();
+ *     MessageFactory factory = MessageFactory.newInstance();
+ *     SOAPMessage message = factory.createMessage();
  *     
- *     final SOAPBodyElement bodyElement = body.addBodyElement(
- *             new QName(this.namespace, this.methodName, this.nsprefix));
+ *     SOAPHeader header = message.getSOAPHeader();
+ *     SOAPBody body = message.getSOAPBody();
+ *     header.detachNode();
  *     
- *     for (int i=0; i&lt;args.length; i++) {
- *         final SOAPElement element = bodyElement.addChildElement(
- *                 new QName("arg" + i));
- * 
- *         element.addTextNode(args[i]);
- *     }
+ *     QName bodyName = new QName("http://wombat.ztrade.com",
+ *         "GetLastTradePrice", "m");
+ *     SOAPBodyElement bodyElement = body.addBodyElement(bodyName);
  *     
- *     response = conn.call(message, this.serviceLocation);
- * 
+ *     QName name = new QName("symbol");
+ *     SOAPElement symbol = bodyElement.addChildElement(name);
+ *     symbol.addTextNode("SUNW");
+ *     
+ *     URL endpoint = new URL("http://spnego.sourceforge.net/soap.html");
+ *     SOAPMessage response = conn.call(message, endpoint);
+ *     
+ *     SOAPBody soapBody = response.getSOAPBody();
+ *     
+ *     Iterator iterator = soapBody.getChildElements(bodyName);
+ *     bodyElement = (SOAPBodyElement)iterator.next();
+ *     String lastPrice = bodyElement.getValue();
+ *     
+ *     System.out.print("The last price for SUNW is ");
+ *     System.out.println(lastPrice);
+ *     
  * } finally {
  *     conn.close();
  * }
@@ -104,8 +132,17 @@ import org.ietf.jgss.GSSException;
  *
  */
 public class SpnegoSOAPConnection extends SOAPConnection {
+    
+    /** Default LOGGER. */
+    private static final Logger LOGGER = 
+        Logger.getLogger(SpnegoSOAPConnection.class.getName());
 
     private final transient SpnegoHttpURLConnection conn;
+    
+    private final transient DocumentBuilderFactory documentFactory = 
+        DocumentBuilderFactory.newInstance();
+    
+    private final transient MessageFactory messageFactory;
     
     /**
      * Creates an instance where the LoginContext relies on a keytab 
@@ -116,9 +153,14 @@ public class SpnegoSOAPConnection extends SOAPConnection {
      * @throws LoginException 
      */
     public SpnegoSOAPConnection(final String loginModuleName) throws LoginException {
-
         super();
         this.conn = new SpnegoHttpURLConnection(loginModuleName);
+        
+        try {
+            this.messageFactory = MessageFactory.newInstance();
+        } catch (SOAPException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     /**
@@ -141,6 +183,37 @@ public class SpnegoSOAPConnection extends SOAPConnection {
     public SpnegoSOAPConnection(final GSSCredential creds, final boolean dispose) {
         super();
         this.conn = new SpnegoHttpURLConnection(creds, dispose);
+        
+        try {
+            this.messageFactory = MessageFactory.newInstance();
+        } catch (SOAPException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+    
+    /**
+     * Create an instance where the GSSCredential is specified by the parameter 
+     * and whether the GSSCredential should be disposed after use.
+     * 
+     * Set confidentiality and mutual integrity to both be false or both be true. 
+     * 
+     * @param creds credentials to use
+     * @param dispose true if GSSCredential should be diposed after use
+     * @param confidential
+     * @param integrity
+     */
+    public SpnegoSOAPConnection(final GSSCredential creds, final boolean dispose
+        , final boolean confidential, final boolean integrity) {
+        super();
+        this.conn = new SpnegoHttpURLConnection(creds, dispose);
+        this.conn.setConfidentiality(confidential);
+        this.conn.setMessageIntegrity(integrity);
+        
+        try {
+            this.messageFactory = MessageFactory.newInstance();
+        } catch (SOAPException e) {
+            throw new IllegalStateException(e);
+        }
     }
     
     /**
@@ -158,19 +231,29 @@ public class SpnegoSOAPConnection extends SOAPConnection {
 
         super();
         this.conn = new SpnegoHttpURLConnection(loginModuleName, username, password);
+        
+        try {
+            this.messageFactory = MessageFactory.newInstance();
+        } catch (SOAPException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Override
     public final SOAPMessage call(final SOAPMessage request, final Object endpoint)
         throws SOAPException {
         
+        LOGGER.finer("endpoint=" + endpoint);
+        
         SOAPMessage message = null;
         final ByteArrayOutputStream bos = new ByteArrayOutputStream();
         
+        this.conn.setRequestMethod("POST");
+        
         try {
             final MimeHeaders headers = request.getMimeHeaders();
-            final String[] contentType = headers.getHeader("Content-Type");
-            final String[] soapAction = headers.getHeader("SOAPAction");
+            final String[] contentType = headers.getHeader(Constants.CONTENT_TYPE);
+            final String[] soapAction = headers.getHeader(Constants.SOAP_ACTION);
             
             // build the Content-Type HTTP header parameter if not defined
             if (null == contentType) {
@@ -183,14 +266,14 @@ public class SpnegoSOAPConnection extends SOAPConnection {
                 }
     
                 // not defined as a MIME header but we need it as an HTTP header parameter
-                this.conn.addRequestProperty("Content-Type", header.toString());
+                this.conn.addRequestProperty(Constants.CONTENT_TYPE, header.toString());
             } else {
                 if (contentType.length > 1) {
                     throw new IllegalArgumentException("Content-Type defined more than once.");
                 }
                 
                 // user specified as a MIME header so add it as an HTTP header parameter
-                this.conn.addRequestProperty("Content-Type", contentType[0]);
+                this.conn.addRequestProperty(Constants.CONTENT_TYPE, contentType[0]);
             }
             
             // specify SOAPAction as an HTTP header parameter
@@ -198,21 +281,16 @@ public class SpnegoSOAPConnection extends SOAPConnection {
                 if (soapAction.length > 1) {
                     throw new IllegalArgumentException("SOAPAction defined more than once.");
                 }
-                this.conn.addRequestProperty("SOAPAction", soapAction[0]);
+                this.conn.addRequestProperty(Constants.SOAP_ACTION, soapAction[0]);
             }
     
             request.writeTo(bos);
             
+            // make the call
             this.conn.connect(new URL(endpoint.toString()), bos);
             
-            final MessageFactory factory = MessageFactory.newInstance(
-                    SOAPConstants.SOAP_1_2_PROTOCOL);
-        
-            try {
-                message = factory.createMessage(null, this.conn.getInputStream());
-            } catch (IOException e) {
-                message = factory.createMessage(null, this.conn.getErrorStream());
-            }
+            // parse the response
+            message = this.createMessage(this.conn.getInputStream());
             
         } catch (MalformedURLException e) {
             throw new SOAPException(e);
@@ -239,5 +317,106 @@ public class SpnegoSOAPConnection extends SOAPConnection {
         if (null != this.conn) {
             this.conn.disconnect();
         }
+    }
+    
+    private SOAPMessage createMessage(final InputStream stream) throws SOAPException {
+        final Document document;
+        
+        try {
+            document = this.parse(stream);
+        } catch (IOException e) {
+            throw new SOAPException(e);
+        } catch (SAXException e) {
+            throw new SOAPException(e);
+        } catch (ParserConfigurationException e) {
+            throw new SOAPException(e);
+        }
+
+        Node soapBody = null;
+
+        // confirm that we have a soap envelope
+        final Element parent = document.getDocumentElement();
+        
+        if ("Envelope".equalsIgnoreCase(parent.getLocalName())) {
+            // confirm that we have a body element
+            
+            final NodeList children = parent.getChildNodes();
+            
+            for (int i = 0; i < children.getLength(); i++) {
+                final Node node = children.item(i);
+                if ("Body".equalsIgnoreCase(node.getLocalName())) {
+                    soapBody = parent.removeChild(node);
+                    break;
+                }
+            }
+
+            if (null == soapBody) {
+                throw new IllegalArgumentException(
+                        "Response did not contain a SOAP 'Body'.");
+            }
+        } else {
+            throw new IllegalArgumentException(
+                    "Response did not contain a SOAP 'Envelope'.");
+        }
+        
+        try {
+            return this.transform(soapBody);
+        } catch (TransformerFactoryConfigurationError e) {
+            throw new SOAPException(e);
+        } catch (TransformerException e) {
+            throw new SOAPException(e);
+        } catch (IOException e) {
+            throw new SOAPException(e);
+        } catch (SAXException e) {
+            throw new SOAPException(e);
+        } catch (ParserConfigurationException e) {
+            throw new SOAPException(e);
+        }
+    }
+
+    private Document parse(final InputStream stream) 
+        throws SAXException, IOException, ParserConfigurationException {
+        
+        this.documentFactory.setNamespaceAware(true);
+        
+        final Document document = 
+            this.documentFactory.newDocumentBuilder().parse(stream);
+        
+        return document;
+    }
+    
+    private SOAPMessage transform(final Node soapBody) throws SOAPException, IOException
+        , TransformerException, SAXException, ParserConfigurationException {
+
+        final SOAPMessage message = messageFactory.createMessage();
+        
+        final Transformer transformer = 
+            TransformerFactory.newInstance().newTransformer();
+        
+        final NodeList children = soapBody.getChildNodes();
+        
+        LOGGER.finer("number of children=" + children.getLength());
+
+        for (int i = 0; i < children.getLength(); i++) {
+            
+            LOGGER.finest("child[" + i + "]=" + children.item(i).getLocalName());
+            
+            final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+
+            transformer.transform(
+                    new DOMSource(children.item(i)), new StreamResult(bos));
+            bos.flush();
+            
+            final ByteArrayInputStream bis = 
+                new ByteArrayInputStream(bos.toByteArray());
+            
+            final Document document = this.parse(bis); 
+            bis.close();
+            bos.close();
+
+            message.getSOAPBody().addDocument(document);
+        }
+
+        return message;
     }
 }

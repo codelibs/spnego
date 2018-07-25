@@ -55,7 +55,7 @@ final class SpnegoAuthScheme {
      * @param authScheme 
      * @param authToken 
      */
-    public SpnegoAuthScheme(final String authScheme, final String authToken) {
+    SpnegoAuthScheme(final String authScheme, final String authToken) {
         this.scheme = authScheme;
         this.token = authToken;
         
@@ -100,7 +100,7 @@ final class SpnegoAuthScheme {
      * 
      * @return "Negotiate" or "Basic"
      */
-    public String getScheme() {
+    String getScheme() {
         return this.scheme;
     }
 
@@ -109,7 +109,7 @@ final class SpnegoAuthScheme {
      * 
      * @return copy of token
      */
-    public byte[] getToken() {
+    byte[] getToken() {
         return (null == this.token) ? EMPTY_BYTE_ARRAY : Base64.decode(this.token);
     }
 }

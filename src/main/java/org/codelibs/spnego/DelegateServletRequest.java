@@ -55,7 +55,6 @@ import org.ietf.jgss.GSSCredential;
  * 
  * <p>
  * <b>Example usage:</b>
- * </p>
  * <pre>
  *     if (request instanceof DelegateServletRequest) {
  *         DelegateServletRequest dsr = (DelegateServletRequest) request;
@@ -63,11 +62,12 @@ import org.ietf.jgss.GSSCredential;
  *         ...
  *     }
  * </pre>
+ * </p>
  * 
  * <p>
  * To see a working example and instructions, take a look at the 
  * <a href="http://spnego.sourceforge.net/credential_delegation.html" 
- * target="_blank">credential delegation example</a>. 
+ * target="_blank">credential delegation</a> example. 
  * </p>
  * 
  * @author Darwin V. Felix

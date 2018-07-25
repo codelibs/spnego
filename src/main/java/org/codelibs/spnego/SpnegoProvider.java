@@ -34,6 +34,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.codelibs.spnego.SpnegoHttpFilter.Constants;
+
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
@@ -66,13 +67,13 @@ import org.ietf.jgss.Oid;
 public final class SpnegoProvider {
 
     /** Default LOGGER. */
-    static final Logger LOGGER = Logger.getLogger(Constants.LOGGER_NAME); //NOPMD
+    private static final Logger LOGGER = Logger.getLogger(SpnegoProvider.class.getName());
 
     /** Factory for GSS-API mechanism. */
-    static final GSSManager MANAGER = GSSManager.getInstance(); // NOPMD
+    private static final GSSManager MANAGER = GSSManager.getInstance();
 
     /** GSS-API mechanism "1.3.6.1.5.5.2". */
-    static final Oid SPNEGO_OID = SpnegoProvider.getOid(); // NOPMD
+    private static final Oid SPNEGO_OID = SpnegoProvider.getOid();
 
     /*
      * This is a utility class (not a Singleton).
@@ -89,7 +90,7 @@ public final class SpnegoProvider {
      * This method may return null in which case you must check the HTTP 
      * Status Code to determine if additional processing is required.
      * <br />
-     * For example, if req. did not contain the SpnegoConstants.AUTHZ_HEADER, 
+     * For example, if req. did not contain the Constants.AUTHZ_HEADER, 
      * the HTTP Status Code SC_UNAUTHORIZED will be set and the client must 
      * send authentication information on the next request.
      * </p>
@@ -187,6 +188,7 @@ public final class SpnegoProvider {
      * @param url HTTP address of server (used for constructing a {@link GSSName}).
      * @return GSSContext 
      * @throws GSSException
+     * @throws PrivilegedActionException
      */
     public static GSSContext getGSSContext(final GSSCredential creds, final URL url) 
         throws GSSException {
@@ -274,7 +276,7 @@ public final class SpnegoProvider {
      * @return GSSName of URL.
      * @throws GSSException 
      */
-    static GSSName getServerName(final URL url) throws GSSException {
+    private static GSSName getServerName(final URL url) throws GSSException {
         return MANAGER.createName("HTTP@" + url.getHost(),
             GSSName.NT_HOSTBASED_SERVICE, SpnegoProvider.SPNEGO_OID);
     }

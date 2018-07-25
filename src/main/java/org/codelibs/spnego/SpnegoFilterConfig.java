@@ -22,6 +22,9 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -36,7 +39,7 @@ import org.codelibs.spnego.SpnegoHttpFilter.Constants;
  * Class that applies/enforces web.xml init params.
  * 
  * <p>These properties are set in the servlet's init params 
- * in the web.xml file.</p>
+ * in the web.xml file.</>
  * 
  * <p>This class also validates if a keyTab should be used 
  * and if all of the LoginModule options have been set.</p>
@@ -47,7 +50,7 @@ import org.codelibs.spnego.SpnegoHttpFilter.Constants;
  * target="_blank">creating a server keytab</a> example.
  * </p>
  * 
- * <p>The class should be used as a Singleton:<br>
+ * <p>The class should be used as a Singleton:<br />
  * <code>
  * SpnegoFilterConfig config = SpnegoFilterConfig.getInstance(filter);
  * </code>
@@ -61,7 +64,7 @@ import org.codelibs.spnego.SpnegoHttpFilter.Constants;
  * @author Darwin V. Felix
  *
  */
-public class SpnegoFilterConfig { // NOPMD
+public final class SpnegoFilterConfig { // NOPMD
     
     private static final Logger LOGGER = Logger.getLogger(Constants.LOGGER_NAME);
     
@@ -87,6 +90,9 @@ public class SpnegoFilterConfig { // NOPMD
     
     /** name of the client login module. */
     private transient String clientLoginModule = null;
+    
+    /** url directory path(s) that should NOT undergo authentication. */
+    private transient String excludeDirs = null;
     
     /** password to domain account. */
     private transient String password = null;
@@ -162,6 +168,9 @@ public class SpnegoFilterConfig { // NOPMD
             this.allowDelegation = 
                 Boolean.parseBoolean(config.getInitParameter(Constants.ALLOW_DELEGATION));
         }
+        
+        // determine if a url path(s) should NOT undergo authentication
+        this.excludeDirs = config.getInitParameter(Constants.EXCLUDE_DIRS);
     }
     
     private void doClientModule(final String moduleName) {
@@ -268,6 +277,20 @@ public class SpnegoFilterConfig { // NOPMD
      */
     String getClientLoginModule() {
         return this.clientLoginModule;
+    }
+    
+    /**
+     * Return the value defined in the servlet's init params 
+     * in the web.xml file as a List object.
+     * 
+     * @return a List of directories to exclude
+     */
+    List<String> getExcludeDirs() {
+        if (null == this.excludeDirs || this.excludeDirs.isEmpty()) {
+            return Collections.emptyList();
+        } else {
+            return SpnegoFilterConfig.split(this.excludeDirs);
+        }
     }
     
     /**
@@ -443,27 +466,27 @@ public class SpnegoFilterConfig { // NOPMD
     private void setLogLevel(final String level) {
         if (null != level) {
             switch (Integer.parseInt(level)) {
-            case 1:
-                LOGGER.setLevel(Level.FINEST);
-                break;
-            case 2:
-                LOGGER.setLevel(Level.FINER);
-                break;
-            case 3:
-                LOGGER.setLevel(Level.FINE);
-                break;
-            case 4:
-                LOGGER.setLevel(Level.CONFIG);
-                break;
-            case 6:
-                LOGGER.setLevel(Level.WARNING);
-                break;
-            case 7:
-                LOGGER.setLevel(Level.SEVERE);
-                break;
-            default :
-                LOGGER.setLevel(Level.INFO);
-                break;
+                case 1:
+                    LOGGER.setLevel(Level.FINEST);
+                    break;
+                case 2:
+                    LOGGER.setLevel(Level.FINER);
+                    break;
+                case 3:
+                    LOGGER.setLevel(Level.FINE);
+                    break;
+                case 4:
+                    LOGGER.setLevel(Level.CONFIG);
+                    break;
+                case 6:
+                    LOGGER.setLevel(Level.WARNING);
+                    break;
+                case 7:
+                    LOGGER.setLevel(Level.SEVERE);
+                    break;
+                default :
+                    LOGGER.setLevel(Level.INFO);
+                    break;
             }
         }
     }
@@ -529,9 +552,38 @@ public class SpnegoFilterConfig { // NOPMD
      * @return true if LoginContext should use keyTab.
      */
     boolean useKeyTab() {
-        return (this.canUseKeyTab && this.username.isEmpty() && this.password.isEmpty());
+        return this.canUseKeyTab && this.username.isEmpty() && this.password.isEmpty();
     }
 
+    private static String clean(final String path) {
+        
+        // assert - more than one char (we do not support ROOT) and no wild card
+        if (path.length() < 2 || path.contains("*")) {
+            throw new IllegalArgumentException(
+                "Invalid exclude.dirs pattern or char(s): " + path);
+        }
+        
+        // ensure that it ends with the slash character
+        final String tmp;
+        if (path.endsWith("/")) {
+            tmp = path;
+        } else {
+            tmp = path + "/";
+        }
+        
+        // we want to include the slash character
+        return tmp.substring(0, tmp.lastIndexOf('/') + 1);
+    }
+    
+    private static List<String> split(final String dirs) {
+        final List<String> list = new ArrayList<String>();
+        
+        for (String dir : dirs.split(",")) {
+            list.add(SpnegoFilterConfig.clean(dir.trim()));
+        }
+        
+        return list;
+    }
     
     @Override
     public String toString() {

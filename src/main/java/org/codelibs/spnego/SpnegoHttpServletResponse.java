@@ -36,7 +36,7 @@ import javax.servlet.http.HttpServletResponseWrapper;
  * @author Darwin V. Felix
  * 
  */
-public final class SpnegoHttpServletResponse extends HttpServletResponseWrapper  {
+public final class SpnegoHttpServletResponse extends HttpServletResponseWrapper {
 
     private transient boolean statusSet = false;
 
