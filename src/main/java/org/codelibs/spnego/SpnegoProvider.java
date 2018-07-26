@@ -26,7 +26,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.security.auth.Subject;
-import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.callback.NameCallback;
 import javax.security.auth.callback.PasswordCallback;
@@ -34,7 +33,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.codelibs.spnego.SpnegoHttpFilter.Constants;
-
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
@@ -67,7 +65,7 @@ import org.ietf.jgss.Oid;
 public final class SpnegoProvider {
 
     /** Default LOGGER. */
-    private static final Logger LOGGER = Logger.getLogger(SpnegoProvider.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(Constants.LOGGER_NAME);
 
     /** Factory for GSS-API mechanism. */
     private static final GSSManager MANAGER = GSSManager.getInstance();
@@ -293,24 +291,19 @@ public final class SpnegoProvider {
 
         LOGGER.fine(() -> "username=" + username + "; password=" + password.hashCode());
 
-        final CallbackHandler handler = new CallbackHandler() {
-            public void handle(final Callback[] callback) {
-                for (int i=0; i<callback.length; i++) {
-                    if (callback[i] instanceof NameCallback) {
-                        final NameCallback nameCallback = (NameCallback) callback[i];
-                        nameCallback.setName(username);
-                    } else if (callback[i] instanceof PasswordCallback) {
-                        final PasswordCallback passCallback = (PasswordCallback) callback[i];
-                        passCallback.setPassword(password.toCharArray());
-                    } else {
-                        final int count = i;
-                        LOGGER.warning(() -> "Unsupported Callback i=" + count + "; class=" 
-                                + callback[count].getClass().getName());
-                    }
+        return callback -> {
+            for (int i = 0; i < callback.length; i++) {
+                if (callback[i] instanceof NameCallback) {
+                    final NameCallback nameCallback = (NameCallback) callback[i];
+                    nameCallback.setName(username);
+                } else if (callback[i] instanceof PasswordCallback) {
+                    final PasswordCallback passCallback = (PasswordCallback) callback[i];
+                    passCallback.setPassword(password.toCharArray());
+                } else {
+                    final int count = i;
+                    LOGGER.warning(() -> "Unsupported Callback i=" + count + "; class=" + callback[count].getClass().getName());
                 }
             }
         };
-
-        return handler;
     }
 }

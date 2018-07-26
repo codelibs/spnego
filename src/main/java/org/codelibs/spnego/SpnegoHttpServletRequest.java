@@ -24,7 +24,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletRequestWrapper;
 
 import org.codelibs.spnego.SpnegoHttpFilter.Constants;
-
 import org.ietf.jgss.GSSCredential;
 
 /**

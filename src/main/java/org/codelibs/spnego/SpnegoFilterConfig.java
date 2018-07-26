@@ -123,7 +123,7 @@ public class SpnegoFilterConfig { // NOPMD
         assert loginConfExists(config.getInitParameter(Constants.LOGIN_CONF));
         
         // specify krb5 conf as a System property
-        if (null == config.getInitParameter(Constants.KRB5_CONF)) {
+        if (!hasInitParameter(config, Constants.KRB5_CONF)) {
             throw new IllegalArgumentException(
                     SpnegoFilterConfig.MISSING_PROPERTY + Constants.KRB5_CONF);
         } else {
@@ -132,7 +132,7 @@ public class SpnegoFilterConfig { // NOPMD
         }
 
         // specify login conf as a System property
-        if (null == config.getInitParameter(Constants.LOGIN_CONF)) {
+        if (!hasInitParameter(config, Constants.LOGIN_CONF)) {
             throw new IllegalArgumentException(
                     SpnegoFilterConfig.MISSING_PROPERTY + Constants.LOGIN_CONF);
         } else {
@@ -158,13 +158,13 @@ public class SpnegoFilterConfig { // NOPMD
         setNtlmSupport(config.getInitParameter(Constants.PROMPT_NTLM));
         
         // requests from localhost will not be authenticated against the KDC 
-        if (null != config.getInitParameter(Constants.ALLOW_LOCALHOST)) {
+        if (hasInitParameter(config, Constants.ALLOW_LOCALHOST)) {
             this.allowLocalhost = 
                 Boolean.parseBoolean(config.getInitParameter(Constants.ALLOW_LOCALHOST));
         }
         
         // determine if the server supports credential delegation 
-        if (null != config.getInitParameter(Constants.ALLOW_DELEGATION)) {
+        if (hasInitParameter(config, Constants.ALLOW_DELEGATION)) {
             this.allowDelegation = 
                 Boolean.parseBoolean(config.getInitParameter(Constants.ALLOW_DELEGATION));
         }
@@ -172,7 +172,11 @@ public class SpnegoFilterConfig { // NOPMD
         // determine if a url path(s) should NOT undergo authentication
         this.excludeDirs = config.getInitParameter(Constants.EXCLUDE_DIRS);
     }
-    
+
+    private boolean hasInitParameter(final FilterConfig config, final String value) {
+        return null != config.getInitParameter(value) && !config.getInitParameter(value).isEmpty();
+    }
+
     private void doClientModule(final String moduleName) {
         
         assert moduleExists("client", moduleName);
@@ -587,11 +591,15 @@ public class SpnegoFilterConfig { // NOPMD
     
     @Override
     public String toString() {
-        final StringBuilder buff = new StringBuilder();
+        final StringBuilder buff = new StringBuilder(100);
         
         buff.append("allowBasic=" + this.allowBasic
                 + "; allowUnsecure=" + this.allowUnsecure
+                + "; allowDelegation=" + this.allowDelegation
+                + "; allowLocalhost=" + this.allowLocalhost
                 + "; canUseKeyTab=" + this.canUseKeyTab
+                + "; excludeDirs=" + this.excludeDirs
+                + "; username=" + this.username
                 + "; clientLoginModule=" + this.clientLoginModule
                 + "; serverLoginModule=" + this.serverLoginModule);
         

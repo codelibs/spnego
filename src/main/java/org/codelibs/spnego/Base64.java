@@ -85,8 +85,8 @@ public final class Base64 {
             return new byte[0];
         }
         
-        final int pad = (string.charAt(length - 2) == '=') ? 2 
-                : (string.charAt(length - 1) == '=') ? 1 : 0;
+        final int pad1 = (string.charAt(length - 1) == '=') ? 1 : 0;
+        final int pad = (string.charAt(length - 2) == '=') ? 2 : pad1;
         final int size = length * 3 / 4 - pad;
         final byte[] buffer = new byte[size];
         int block;

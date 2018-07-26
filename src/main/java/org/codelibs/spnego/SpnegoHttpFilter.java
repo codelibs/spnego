@@ -485,7 +485,7 @@ public class SpnegoHttpFilter implements Filter {
          * 
          * <p>Example: <code>Logger.getLogger(Constants.LOGGER_NAME)</code></p>
          */
-        public static final String LOGGER_NAME = "SpnegoHttpFilter"; 
+        public static final String LOGGER_NAME = "Spnego"; 
         
         /** 
          * Servlet init param name in web.xml <b>spnego.login.conf</b>. 

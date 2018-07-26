@@ -22,7 +22,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.PrivilegedActionException;
 import java.util.logging.Logger;
@@ -43,7 +42,6 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
 import org.codelibs.spnego.SpnegoHttpFilter.Constants;
-
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
 import org.w3c.dom.Document;

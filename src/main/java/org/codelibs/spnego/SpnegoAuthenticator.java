@@ -40,7 +40,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.codelibs.spnego.SpnegoHttpFilter.Constants;
-
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
@@ -157,6 +156,7 @@ public final class SpnegoAuthenticator {
             this.loginContext = new LoginContext(config.getServerLoginModule(), handler);            
         }
 
+        LOGGER.fine(() -> "logging in context");
         this.loginContext.login();
 
         this.serverCredentials = SpnegoProvider.getServerCredential(
@@ -164,6 +164,7 @@ public final class SpnegoAuthenticator {
 
         this.serverPrincipal = new KerberosPrincipal(
                 this.serverCredentials.getName().toString());
+        LOGGER.fine(() -> "serverCredentials: " + serverCredentials + ", serverPrincipal: " + serverPrincipal);
     }
     
     /**
@@ -310,6 +311,8 @@ public final class SpnegoAuthenticator {
         final boolean basicSupported = 
             this.allowBasic && (this.allowUnsecure || req.isSecure());
         
+        LOGGER.fine(() -> "Negotiating: serverRealm: " + serverRealm + ", basicSupported: " + basicSupported + ", promptIfNtlm: "
+                + promptIfNtlm);
         final SpnegoPrincipal principal;
         final SpnegoAuthScheme scheme = SpnegoProvider.negotiate(
                 req, resp, basicSupported, this.promptIfNtlm, serverRealm);
@@ -384,6 +387,7 @@ public final class SpnegoAuthenticator {
      */
     private SpnegoPrincipal doBasicAuth(final SpnegoAuthScheme scheme
         , final SpnegoHttpServletResponse resp) throws IOException {
+        LOGGER.fine(() -> "Starting Basic Auth...");
 
         final byte[] data = scheme.getToken();
 
@@ -392,7 +396,9 @@ public final class SpnegoAuthenticator {
             return null;
         }
 
-        final String[] basicData = new String(data).split(":", 2);
+        final String tokenData = new String(data);
+        LOGGER.fine(() -> "tokenData: " + tokenData);
+        final String[] basicData = tokenData.split(":", 2);
 
         // assert
         if (basicData.length != 2) {
@@ -417,6 +423,7 @@ public final class SpnegoAuthenticator {
 
             final LoginContext cntxt = new LoginContext(this.clientModuleName, handler);
 
+            LOGGER.fine(() -> "logging in context: " + cntxt);
             // validate username/password by login/logout  
             cntxt.login();
             cntxt.logout();
@@ -424,6 +431,7 @@ public final class SpnegoAuthenticator {
             principal = new SpnegoPrincipal(username + '@' 
                     + this.serverPrincipal.getRealm()
                     , KerberosPrincipal.KRB_NT_PRINCIPAL);
+            LOGGER.fine(() -> "principal: " + username + '@' + this.serverPrincipal.getRealm());
 
         } catch (LoginException lex) {
             LOGGER.log(Level.FINE, lex, () -> "Login failed. username=" + username);
@@ -442,10 +450,12 @@ public final class SpnegoAuthenticator {
         final String username = System.getProperty("user.name");
         
         if (null == username || username.isEmpty()) {
+            LOGGER.fine(() -> "login as server.principal:" + serverPrincipal.getName() + " on localhost");
             return new SpnegoPrincipal(this.serverPrincipal.getName() + '@' 
                     + this.serverPrincipal.getRealm()
                     , this.serverPrincipal.getNameType());            
         } else {
+            LOGGER.fine(() -> "login as user.name:" + username + " on localhost");
             return new SpnegoPrincipal(username + '@' 
                     + this.serverPrincipal.getRealm()
                     , KerberosPrincipal.KRB_NT_PRINCIPAL);            
@@ -465,6 +475,7 @@ public final class SpnegoAuthenticator {
     private SpnegoPrincipal doSpnegoAuth(
         final SpnegoAuthScheme scheme, final SpnegoHttpServletResponse resp) 
         throws GSSException, IOException {
+        LOGGER.fine(() -> "Starting SPNEGO Auth...");
 
         final String principal;
         final byte[] gss = scheme.getToken();
@@ -503,15 +514,19 @@ public final class SpnegoAuthenticator {
             }
 
             principal = context.getSrcName().toString();
+            LOGGER.fine(() -> "principal from GSS: " + principal);
             
             if (this.allowDelegation && context.getCredDelegState()) {
-                delegCred = context.getDelegCred();
+                final GSSCredential gssCredential = context.getDelegCred();
+                delegCred = gssCredential;
+                LOGGER.fine(() -> "GSSCredential found: " + gssCredential);
             }
 
         } finally {
             if (null != context) {
                 SpnegoAuthenticator.LOCK.lock();
                 try {
+                    LOGGER.fine(() -> "Disposing GSSContext...");
                     context.dispose();
                 } finally {
                     SpnegoAuthenticator.LOCK.unlock();
