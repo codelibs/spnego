@@ -33,22 +33,22 @@ import org.codelibs.spnego.SpnegoHttpFilter.Constants;
 final class SpnegoAuthScheme {
     
     /** Zero length byte array. */
-    private static final transient byte[] EMPTY_BYTE_ARRAY = new byte[0];
+    private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 
     /** HTTP (Request) "Authorization" Header scheme. */ 
-    private final transient String scheme;
+    private final String scheme;
 
     /** HTTP (Request) scheme token. */
-    private final transient String token;
+    private final String token;
     
     /** true if Basic Auth scheme. */
-    private final transient boolean basicScheme;
+    private final boolean basicScheme;
     
     /** true if Negotiate scheme. */
-    private final transient boolean negotiateScheme;
+    private final boolean negotiateScheme;
     
     /** true if NTLM token. */
-    private final transient boolean ntlm;
+    private final boolean ntlm;
 
     /**
      * 

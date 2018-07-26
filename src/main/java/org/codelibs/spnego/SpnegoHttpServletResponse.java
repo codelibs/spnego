@@ -38,7 +38,7 @@ import javax.servlet.http.HttpServletResponseWrapper;
  */
 public final class SpnegoHttpServletResponse extends HttpServletResponseWrapper {
 
-    private transient boolean statusSet = false;
+    private boolean statusSet = false;
 
     /**
      * 

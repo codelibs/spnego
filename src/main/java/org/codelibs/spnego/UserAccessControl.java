@@ -73,7 +73,7 @@ import java.util.Properties;
  * </p>
  * 
  * <p>
- * <b>Example Usage 1:</b><br />
+ * <b>Example Usage 1:</b><br>
  * A new ticketing application where every user of the application has the same 
  * access rights and the only requirement is that they have logged-in to their 
  * workstation/computer. Under this scenario, every user must first authenticate (authN) 
@@ -83,12 +83,13 @@ import java.util.Properties;
  * </p>
  * 
  * <p>
- * <b>Example Usage 2:</b><br />
+ * <b>Example Usage 2:</b><br>
  * A new feature will be introduced to the ticketing application. The new feature 
  * should only be accessible by users who are in the LDAP Group/Active Directory Group 
  * BizDev Mngrs., Client Services, or Acct. Mngrs. Since authN is assumed to have already 
  * taken place, the developer of the new feature can protect access to the new feature 
  * by invoking one of the methods in the <code>UserAccessControl</code> interface.
+ * </p>
  * 
  * <pre>
  * UserAccessControl accessControl = ...;
@@ -101,6 +102,7 @@ import java.util.Properties;
  * }
  * </pre>
  * 
+ * <p>
  * In the above example, if the user dfelix has at least one of those attributes (in this 
  * example, each attribute is an AD group), 
  * then the code inside the if block will execute. The <code>anyRole</code> method 
@@ -108,12 +110,13 @@ import java.util.Properties;
  * </p>
  * 
  * <p>
- * <b>Example Usage 3:</b><br />
+ * <b>Example Usage 3:</b><br>
  * A second new feature will be introduced but this time only certain departments within the 
  * Information Technology (IT) division should have access to this latest feature. 
  * The IT division has many departments (e.g. Helpdesk/Desktop Support, Networking Team, 
  * Database Admins,  Business Analysts, Software Developers, etc.). However, only Business 
  * Analysts and Software Developers within IT should have access to this latest feature.
+ * </p>
  * 
  * <pre>
  * UserAccessControl accessControl = ...;
@@ -127,6 +130,7 @@ import java.util.Properties;
  * }
  * </pre>
  * 
+ * <p>
  * In the above example, if dfelix has the attribute IT Group and has either 
  * Biz. Analyst or Developer, then the code inside the if block will execute. 
  * The <code>hasRole</code> method will return true if it can match the first 
@@ -159,12 +163,13 @@ import java.util.Properties;
  * </p>
  * 
  * <p>
- * <b>Example Usage 4:</b></br />
+ * <b>Example Usage 4:</b><br>
  * The ticketing system is nearing maturity and it has been determined that only 
  * Biz. Analysts from the IT Group (i.e. policy statement A) or 
  * any Biz. Analyst out of the Los Angeles office (i.e. policy statement B) 
  * should have access to the edit/admin buttons. 
  * Biz. Analysts from the other locations should not have the edit/admin buttons enabled.
+ * </p>
  * 
  * <pre>
  * UserAccessControl accessControl = ...;
@@ -175,7 +180,6 @@ import java.util.Properties;
  *     editAndAdminBtns = true;
  * }
  * </pre>
- * </p>
  * 
  * <p>
  * In the above example, two policy statements were defined - policy A and policy B. 
@@ -192,6 +196,7 @@ import java.util.Properties;
  * <p>
  * Note that policy statement A and policy statement B can be re-defined into 
  * one policy statement, policy statement C. 
+ * </p>
  * 
  * <pre>
  * UserAccessControl accessControl = ...;
@@ -205,6 +210,7 @@ import java.util.Properties;
  * }
  * </pre>
  * 
+ * <p>
  * An implementation of this interface MUST support the usage semantics for policy A, 
  * policy B, and policy C. Classes that implement the <code>UserAccessControl</code> 
  * interface MUST allow symmetry in the usage semantics. By way of example, if a 
@@ -231,25 +237,27 @@ import java.util.Properties;
  * 
  * <p>
  * <b>Uniqueness Example (with LdapAccessControl):</b>
+ * </p>
  * <pre>
  * &lt;!-- AD Group (excluding group names that match with department) --&gt;
  * &lt;init-param&gt;
  *     &lt;param-name&gt;spnego.authz.ldap.filter.1&lt;/param-name&gt;
  *      &lt;param-value&gt;
- *      &lt;![CDATA[(&(sAMAccountName=%1$s)
- *      (memberOf:1.2.840.113556.1.4.1941:=CN=%2$s,OU=Groups,OU=Los Angeles,DC=athena,DC=local)(!(&(sAMAccountType=805306368)(department=%2$s))))]]&gt;
+ *      &lt;![CDATA[(&amp;(sAMAccountName=%1$s)
+ *      (memberOf:1.2.840.113556.1.4.1941:=CN=%2$s,OU=Groups,OU=Los Angeles,DC=athena,DC=local)(!(&amp;(sAMAccountType=805306368)(department=%2$s))))]]&gt;
  *      &lt;/param-value&gt;
  * &lt;/init-param&gt;
  * &lt;!-- Department --&gt;
  * &lt;init-param&gt;
  *     &lt;param-name&gt;spnego.authz.ldap.filter.2&lt;/param-name&gt;
  *     &lt;param-value&gt;
- *     &lt;![CDATA[(&(sAMAccountType=805306368)(sAMAccountName=%1$s)(&(sAMAccountType=805306368)(department=%2$s)))]]&gt;
+ *     &lt;![CDATA[(&amp;(sAMAccountType=805306368)(sAMAccountName=%1$s)(&amp;(sAMAccountType=805306368)(department=%2$s)))]]&gt;
  *     &lt;/param-value&gt;
  * &lt;/init-param&gt;
- * <i>filter must all be on one line. wrapped here for compactness.</i><br/>
+ * <i>filter must all be on one line. wrapped here for compactness.</i>
  * </pre>
  * 
+ * <p>
  * In the above example, the filter one (1) will find the AD group provided that a department 
  * is not named the same. The consequence to this alternative approach is that AD Groups 
  * with the same name as a department name will no longer be available as an option.
@@ -264,6 +272,7 @@ import java.util.Properties;
  * identifier Performance Team is defined in two attribute sets 
  * (division and email distribution list), implementations of this interface 
  * MUST throw an exception upon executing policy statement D.
+ * </p>
  * 
  * <pre>
  * UserAccessControl accessControl = ...;
@@ -282,7 +291,6 @@ import java.util.Properties;
  *     System.exit(-1);
  * }
  * </pre>
- * </p>
  * 
  * <p>
  * In the above example, if a policy was defined to search the  division attribute set 
@@ -305,6 +313,7 @@ import java.util.Properties;
  * configuration before use. The <code>anyAccess</code> and the <code>hasAccess</code> 
  * methods are used as an alternative to the <code>anyRole</code> method and the 
  * <code>hasRole</code> methods.  
+ * </p>
  *
  * <pre>
  * UserAccessControl accessControl = ...;
@@ -314,7 +323,6 @@ import java.util.Properties;
  *     editAndAdminBtns = true;
  * }
  * </pre>
- * </p>
  * 
  * <p>
  * In the above example, the attribute(s) that support the policy is abstracted by the 

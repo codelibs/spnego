@@ -62,7 +62,7 @@ package org.codelibs.spnego;
  * </p>
  * 
  * <p>
- * <b>Attribute Set Example Scenario:</b><br />
+ * <b>Attribute Set Example Scenario:</b><br>
  * This example will assume Active Directory (AD) as the data store for user information. 
  * It also assumes that in AD there are three AD Groups named <code>File Share Access</code>, 
  * <code>Finance London</code>, and <code>Desktop Support</code>. Finally, we assume
@@ -80,12 +80,13 @@ package org.codelibs.spnego;
  * </p>
  * 
  * <p>
- * <b>Example Usage 1:</b><br />
+ * <b>Example Usage 1:</b><br>
  * A web application/service requires authentication (authN) but certain areas 
  * must only be accessed by users who are in the <code>HR</code> department 
  * OR have been added to the AD Group named <code>File Share Access</code> 
  * OR those users who have a value of <code>Desktop Support</code> 
  * in their department attribute in AD.
+ * </p>
  * 
  * <pre>
  * boolean hasPermission = false;
@@ -99,16 +100,18 @@ package org.codelibs.spnego;
  * } 
  * </pre>
  * 
+ * <p>
  * In the above example, the method call <code>anyRole</code> will return true 
  * if the user is in the department named HR or the AD Group named "File share Access" 
  * or is in the department named "Desktop Support".
  * </p>
  * 
  * <p>
- * <b>Example Usage 2:</b></br />
+ * <b>Example Usage 2:</b><br>
  * Certain areas of a web application/service must only be accessed by users who are 
  * in the AD Group <code>File Share Access</code> AND who are in the AD Group 
  * <code>Finance London</code> or who are in the <code>Accounting</code> department.
+ * </p>
  * 
  * <pre>
  * boolean hasPermission = false;
@@ -123,6 +126,7 @@ package org.codelibs.spnego;
  * } 
  * </pre>
  * 
+ * <p>
  * In the above example, if the user has the attribute File Share Access  
  * AND one of the attributeYs (Finance London or Accounting), the method call 
  * <code>hasRole</code> will return true. 
@@ -136,6 +140,7 @@ package org.codelibs.spnego;
  * An alternative to specifying department names, groups, email distribution lists, etc. 
  * is to use a user-defined resource label. Resource labels are optional and hence must  
  * undergo additional configuration before use.   
+ * </p>
  *
  * <pre>
  * boolean hasPermission = false;
@@ -146,7 +151,6 @@ package org.codelibs.spnego;
  *     hasPermission = accessControl.hasAccess("finance-links");
  * } 
  * </pre>
- * </p>
  * 
  * <p>
  * In the above example, the attribute(s) that support the policy is abstracted by the 
@@ -171,12 +175,12 @@ package org.codelibs.spnego;
  * </p>
  * 
  * <p>
- * <b>No java cast example:</b><br />
+ * <b>No java cast example:</b>
+ * </p>
  * 
  * <pre>
  * boolean hasPermission = request.isUserInRole("File Share Access");
  * </pre>
- * </p>
  * 
  * <p>
  * In the above example, the Java Cast was not necessary because the standard 

@@ -93,6 +93,7 @@ import javax.naming.ldap.LdapContext;
  * 
  * <p>
  * <b>Example web.xml Configuration:</b>
+ * </p>
  * <pre>
  * &lt;filter&gt;
  *     &lt;filter-name&gt;SpnegoHttpFilter&lt;/filter-name&gt;
@@ -137,7 +138,6 @@ import javax.naming.ldap.LdapContext;
  *     &lt;/init-param&gt;
  * &lt;/filter&gt;
  * </pre>
- * </p>
  * 
  * <p>
  * As an alternative option, the <code>spnego.authz.ldap.filter.[i]</code> parameters and 
@@ -147,6 +147,7 @@ import javax.naming.ldap.LdapContext;
  * 
  * <p>
  * <b>Example Policy File Configuration:</b>
+ * </p>
  * <pre>
  * &lt;filter&gt;
  *     &lt;filter-name&gt;SpnegoHttpFilter&lt;/filter-name&gt;
@@ -183,7 +184,6 @@ import javax.naming.ldap.LdapContext;
  * spnego.authz.ldap.filter.1=(&amp;(sAMAccountName=%1$s)(memberOf:1.2.840.113556.1.4.1941:=CN=%2$s,OU=Groups,OU=Los Angeles,DC=athena,DC=local))
  * spnego.authz.ldap.filter.2=(&amp;(sAMAccountType=805306368)(sAMAccountName=%1$s)(&amp;(sAMAccountType=805306368)(department=%2$s)))
  * </pre>
- * </p>
  * 
  * <p>
  * For more information on how a web application/service can leverage access controls  
@@ -264,37 +264,36 @@ public class LdapAccessControl implements UserAccessControl {
     private static final int MAX_NUM_FILTERS = 200;
     
     /** read lock for reading instance variables and write lock for ldap search. */
-    private final transient ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
-    private final transient Lock readLock = readWriteLock.readLock();
-    private final transient Lock writeLock = readWriteLock.writeLock();
+    private final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    private final Lock readLock = readWriteLock.readLock();
+    private final Lock writeLock = readWriteLock.writeLock();
     
     /** cache LDAP results to minimize trips to ldap server. */
-    private final transient Map<String, Long> matchedList = new HashMap<String, Long>();
-    private final transient Map<String, Long> unMatchedList = new HashMap<String, Long>();
-    private final transient Map<String, UserInfo> userInfoList = new HashMap<String, UserInfo>();
+    private final Map<String, Long> matchedList = new HashMap<>();
+    private final Map<String, Long> unMatchedList = new HashMap<>();
+    private final Map<String, UserInfo> userInfoList = new HashMap<>();
     
-    private transient Hashtable<String, String> environment;
-    private transient SearchControls srchCntrls;
+    private Hashtable<String, String> environment;
+    private SearchControls srchCntrls;
     
     /** DC= base portionS of the ldap search filter. */
-    private transient String deecee = "";
+    private String deecee = "";
     
     /** ldap search filter(s). */
-    private transient Set<String> policy = new HashSet<String>();
+    private Set<String> policy = new HashSet<String>();
     
     /** determines how long to keep in cache. */
-    private transient long expiration = DEFAULT_TTL;
+    private long expiration = DEFAULT_TTL;
     
     /** determines if an exception should be thrown if it finds a duplicate. */
-    private transient boolean uniqueOnly = true;
+    private boolean uniqueOnly = true;
     
     /** access resources by using a user-defined label. */
-    private transient Map<String, Map<String, String[]>> resources = 
-            new HashMap<String, Map<String, String[]>>();
+    private Map<String, Map<String, String[]>> resources =  new HashMap<>();
     
-    private transient List<String> userInfoLabels = new ArrayList<String>();
+    private List<String> userInfoLabels = new ArrayList<>();
     
-    private transient String userInfoFilter;
+    private String userInfoFilter;
     
     /**
      * Default constructor.
@@ -305,7 +304,7 @@ public class LdapAccessControl implements UserAccessControl {
     
     @Override
     public void destroy() {
-        LOGGER.info("destroy()...");
+        LOGGER.info(() -> "destroy()...");
         this.writeLock.lock();
         try {
             this.matchedList.clear();
@@ -357,7 +356,7 @@ public class LdapAccessControl implements UserAccessControl {
             }
 
             // query AD to update both MapS and expiration time
-            LOGGER.fine("username: " + username + "; role: " + attribute);
+            LOGGER.fine(() -> "username: " + username + "; role: " + attribute);
 
             this.writeLock.lock();
             try {
@@ -380,7 +379,7 @@ public class LdapAccessControl implements UserAccessControl {
                     // add to cache
                     if (found) {
                         count++;
-                        //LOGGER.info("add attribute to matchedList: " + attribute);
+                        LOGGER.fine(() -> "add attribute to matchedList: " + attribute);
                         this.matchedList.put(key, System.currentTimeMillis());
                         if (!this.uniqueOnly) {
                             break;                            
@@ -400,7 +399,7 @@ public class LdapAccessControl implements UserAccessControl {
                 context.close();
                 
                 if (0 == count) {
-                    //LOGGER.info("add attribute to unMatchedList: " + attribute);
+                    LOGGER.fine(() -> "add attribute to unMatchedList: " + attribute);
                     this.unMatchedList.put(key, System.currentTimeMillis());                    
                 } else {
                     cacheUserInfo(username);
@@ -563,10 +562,11 @@ public class LdapAccessControl implements UserAccessControl {
     /**
      * Returns a user info object if specified in  web.xml or the spnego.policy file.
      * 
-     * <p>Case-sensitive</br>
+     * <p>Case-sensitive</p>
      * 
      * <p>
-     * <b>web.xml Example:</b></br />
+     * <b>web.xml Example:</b>
+     * </p>
      * <pre>
      *     ...
      *     &lt;init-param&gt;
@@ -579,10 +579,10 @@ public class LdapAccessControl implements UserAccessControl {
      *     &lt;/init-param&gt;
      *     ...
      * </pre>
-     * </p>
      * 
      * <p>
-     * <b>spnego.policy File Example:</b><br />
+     * <b>spnego.policy File Example:</b>
+     * </p>
      * <pre>
      * ...
      * # case-sensitive
@@ -590,8 +590,6 @@ public class LdapAccessControl implements UserAccessControl {
      * spnego.authz.ldap.user.filter=(&amp;(sAMAccountType=805306368)(sAMAccountName=%1$s))
      * ...
      * </pre>
-     * </p>
-     * </p>
      * 
      * @param username e.g. dfelix
      * @return UserInfo object with the specified ldap attributes

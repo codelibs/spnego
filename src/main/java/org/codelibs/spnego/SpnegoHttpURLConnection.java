@@ -64,6 +64,7 @@ import org.ietf.jgss.GSSException;
  * 
  * <p>
  * Example usage (username/password):
+ * </p>
  * <pre>
  *     public static void main(final String[] args) throws Exception {
  *         System.setProperty("java.security.krb5.conf", "krb5.conf");
@@ -85,11 +86,11 @@ import org.ietf.jgss.GSSException;
  *         }
  *     }
  * </pre>
- * </p>
  * 
  * <p>
  * Alternatively, if the server supports HTTP Basic Authentication, this Class 
  * is NOT needed and instead you can do something like the following:
+ * </p>
  * <pre>
  *     public static void main(final String[] args) throws Exception {
  *         final String creds = "dfelix:myp@s5";
@@ -108,7 +109,6 @@ import org.ietf.jgss.GSSException;
  *         System.out.println("Response Code:" + conn.getResponseCode());
  *     }
  * </pre>
- * </p>
  * 
  * <p>
  * To see a working example and instructions on how to use a keytab, take 
@@ -137,7 +137,7 @@ public final class SpnegoHttpURLConnection {
      * If false, this connection object has not created a communications link to 
      * the specified URL. If true, the communications link has been established.
      */
-    private transient boolean connected = false;
+    private boolean connected = false;
 
     /**
      * Default is set to false instead of true.
@@ -151,45 +151,45 @@ public final class SpnegoHttpURLConnection {
      * 
      * @see java.net.HttpURLConnection#getRequestMethod()
      */
-    private transient String requestMethod = "GET";
+    private String requestMethod = "GET";
     
     /**
      * @see java.net.URLConnection#getRequestProperties()
      */
-    private final transient Map<String, List<String>> requestProperties = 
-        new LinkedHashMap<String, List<String>>();
+    private final Map<String, List<String>> requestProperties = 
+        new LinkedHashMap<>();
 
     /** 
      * Login Context for authenticating client. If username/password 
      * or GSSCredential is provided (in constructor) then this 
      * field will always be null.
      */
-    private final transient LoginContext loginContext;
+    private final LoginContext loginContext;
 
     /**
      * Client's credentials. If username/password or LoginContext is provided 
      * (in constructor) then this field will always be null.
      */
-    private transient GSSCredential credential;
+    private GSSCredential credential;
 
     /** 
      * Flag to determine if GSSContext has been established. Users of this 
      * class should always check that this field is true before using/trusting 
      * the contents of the response.
      */
-    private transient boolean cntxtEstablished = false;
+    private boolean cntxtEstablished = false;
 
     /** 
      * Ref to HTTP URL Connection object after calling connect method. 
      * Always call spnego.disconnect() when done using this class.
      */
-    private transient HttpURLConnection conn = null;
+    private HttpURLConnection conn = null;
 
     /** 
      * Request credential to be delegated. 
      * Default is false. 
      */
-    private transient boolean reqCredDeleg = false;
+    private boolean reqCredDeleg = false;
     
     /**
      * Determines if the GSSCredentials (if any) used during the 
@@ -197,41 +197,41 @@ public final class SpnegoHttpURLConnection {
      * this class when finished.
      * Default is true.
      */
-    private transient boolean autoDisposeCreds = true;
+    private boolean autoDisposeCreds = true;
     
     /**
      * Number of times request was redirected.
      */
-    private transient int redirectCount = 0;
+    private int redirectCount = 0;
 
     /**
      * GSSContext request Mutual Authentication.
      */
-    private transient boolean mutualAuth = true;
+    private boolean mutualAuth = true;
     
     /**
      * GSSContext request Message Confidentiality.
      * Default is true.
      */
-    private transient boolean confidentiality = true;
+    private boolean confidentiality = true;
     
     /**
      * GSSContext request Message Integrity.
      * Default is true.
      */
-    private transient boolean messageIntegrity = true;
+    private boolean messageIntegrity = true;
     
     /**
      * GSSContext request Replay Detection.
      * Default is true.
      */
-    private transient boolean replayDetection = true;
+    private boolean replayDetection = true;
     
     /**
      * GSSContext request Sequence Detection.
      * Default is true.
      */
-    private transient boolean sequenceDetection = true;
+    private boolean sequenceDetection = true;
     
     /**
      * Number of times redirects will be allowed.
@@ -333,7 +333,6 @@ public final class SpnegoHttpURLConnection {
      * @throws GSSException 
      * @throws PrivilegedActionException 
      * @throws IOException 
-     * @throws LoginException 
      * 
      * @see java.net.URLConnection#connect()
      */
@@ -353,7 +352,6 @@ public final class SpnegoHttpURLConnection {
      * @throws GSSException 
      * @throws PrivilegedActionException 
      * @throws IOException 
-     * @throws LoginException 
      * 
      * @see java.net.URLConnection#connect()
      */
@@ -426,12 +424,12 @@ public final class SpnegoHttpURLConnection {
             
             // app servers will not return a WWW-Authenticate on 302, (and 30x...?)
             if (null == scheme) {
-                LOGGER.fine("SpnegoProvider.getAuthScheme(...) returned null.");
+                LOGGER.fine(() -> "SpnegoProvider.getAuthScheme(...) returned null.");
                 
             // client requesting to skip context loop if 200 and mutualAuth=false
             } else if (this.conn.getResponseCode() == HttpURLConnection.HTTP_OK
                     && !this.mutualAuth) {
-                LOGGER.fine("SpnegoProvider.getAuthScheme(...) returned null.");
+                LOGGER.fine(() -> "SpnegoProvider.getAuthScheme(...) returned null.");
                 
             } else {
                 data = scheme.getToken();
@@ -446,7 +444,8 @@ public final class SpnegoHttpURLConnection {
 
                     // TODO : support context loops where i>1
                     if (null != data) {
-                        LOGGER.warning("Server requested context loop: " + data.length);
+                        final int dataLength = data.length;
+                        LOGGER.warning(() -> "Server requested context loop: " + dataLength);
                     }
                     
                 } else {
@@ -478,7 +477,7 @@ public final class SpnegoHttpURLConnection {
                     SpnegoHttpURLConnection.LOCK.unlock();
                 }
             } catch (GSSException gsse) {
-                LOGGER.log(Level.WARNING, "call to dispose context failed.", gsse);
+                LOGGER.log(Level.WARNING, gsse, () -> "call to dispose context failed.");
             }
         }
         
@@ -486,7 +485,7 @@ public final class SpnegoHttpURLConnection {
             try {
                 this.credential.dispose();
             } catch (final GSSException gsse) {
-                LOGGER.log(Level.WARNING, "call to dispose credential failed.", gsse);
+                LOGGER.log(Level.WARNING, gsse, () -> "call to dispose credential failed.");
             }
         }
         
@@ -494,7 +493,7 @@ public final class SpnegoHttpURLConnection {
             try {
                 this.loginContext.logout();
             } catch (final LoginException lex) {
-                LOGGER.log(Level.WARNING, "call to logout context failed.", lex);
+                LOGGER.log(Level.WARNING, lex, () -> "call to logout context failed.");
             }
         }
     }
@@ -563,7 +562,7 @@ public final class SpnegoHttpURLConnection {
         assertNotConnected();
         assertKeyValue(key, value);
 
-        final List<String> val = new ArrayList<String>();
+        final List<String> val = new ArrayList<>();
         val.add(value);
         
         this.requestProperties.put(key, val);

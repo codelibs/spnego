@@ -39,7 +39,7 @@ import org.codelibs.spnego.SpnegoHttpFilter.Constants;
  * Class that applies/enforces web.xml init params.
  * 
  * <p>These properties are set in the servlet's init params 
- * in the web.xml file.</>
+ * in the web.xml file.</p>
  * 
  * <p>This class also validates if a keyTab should be used 
  * and if all of the LoginModule options have been set.</p>
@@ -50,7 +50,7 @@ import org.codelibs.spnego.SpnegoHttpFilter.Constants;
  * target="_blank">creating a server keytab</a> example.
  * </p>
  * 
- * <p>The class should be used as a Singleton:<br />
+ * <p>The class should be used as a Singleton:
  * <code>
  * SpnegoFilterConfig config = SpnegoFilterConfig.getInstance(filter);
  * </code>
@@ -64,47 +64,47 @@ import org.codelibs.spnego.SpnegoHttpFilter.Constants;
  * @author Darwin V. Felix
  *
  */
-public final class SpnegoFilterConfig { // NOPMD
+public class SpnegoFilterConfig { // NOPMD
     
     private static final Logger LOGGER = Logger.getLogger(Constants.LOGGER_NAME);
     
     private static final String MISSING_PROPERTY = 
         "Servlet Filter init param(s) in web.xml missing: ";
     
-    private static transient SpnegoFilterConfig instance = null;
+    private static SpnegoFilterConfig instance = null;
 
     /** true if Basic auth should be offered. */
-    private transient boolean allowBasic = false;
+    private boolean allowBasic = false;
     
     /** true if server should support credential delegation requests. */
-    private transient boolean allowDelegation = false;
+    private boolean allowDelegation = false;
     
     /** true if request from localhost should not be authenticated. */
-    private transient boolean allowLocalhost = true;
+    private boolean allowLocalhost = true;
     
     /** true if non-ssl for basic auth is allowed. */
-    private transient boolean allowUnsecure = true;
+    private boolean allowUnsecure = true;
     
     /** true if all req. login module options set. */
-    private transient boolean canUseKeyTab = false;
+    private boolean canUseKeyTab = false;
     
     /** name of the client login module. */
-    private transient String clientLoginModule = null;
+    private String clientLoginModule = null;
     
     /** url directory path(s) that should NOT undergo authentication. */
-    private transient String excludeDirs = null;
+    private String excludeDirs = null;
     
     /** password to domain account. */
-    private transient String password = null;
+    private String password = null;
     
     /** true if instead of err on ntlm token, prompt for username/pass. */
-    private transient boolean promptNtlm = false;
+    private boolean promptNtlm = false;
 
     /** name of the server login module. */
-    private transient String serverLoginModule = null;
+    private String serverLoginModule = null;
     
     /** domain account to use for pre-authentication. */
-    private transient String username = null;
+    private String username = null;
     
     private SpnegoFilterConfig() {
         // default private
@@ -576,7 +576,7 @@ public final class SpnegoFilterConfig { // NOPMD
     }
     
     private static List<String> split(final String dirs) {
-        final List<String> list = new ArrayList<String>();
+        final List<String> list = new ArrayList<>();
         
         for (String dir : dirs.split(",")) {
             list.add(SpnegoFilterConfig.clean(dir.trim()));

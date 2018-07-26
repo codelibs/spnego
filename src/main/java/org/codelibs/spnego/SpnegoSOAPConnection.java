@@ -57,19 +57,19 @@ import org.xml.sax.SAXException;
  * 
  * <p>
  * The idea for this class is to replace code that looks like this...
+ * </p>
  * <pre>
  *  final SOAPConnectionFactory soapConnectionFactory =
  *      SOAPConnectionFactory.newInstance();
  *  conn = soapConnectionFactory.createConnection();
  * </pre>
- * </p>
  * 
  * <p>
  * with code that looks like this...
+ * </p>
  * <pre>
  *  conn = new SpnegoSOAPConnection("spnego-client", "dfelix", "myp@s5");
  * </pre>
- * </p>
  * 
  * <p><b>Example:</b></p>
  * <pre>
@@ -137,12 +137,12 @@ public class SpnegoSOAPConnection extends SOAPConnection {
     private static final Logger LOGGER = 
         Logger.getLogger(SpnegoSOAPConnection.class.getName());
 
-    private final transient SpnegoHttpURLConnection conn;
+    private final SpnegoHttpURLConnection conn;
     
-    private final transient DocumentBuilderFactory documentFactory = 
+    private final DocumentBuilderFactory documentFactory = 
         DocumentBuilderFactory.newInstance();
     
-    private final transient MessageFactory messageFactory;
+    private final MessageFactory messageFactory;
     
     /**
      * Creates an instance where the LoginContext relies on a keytab 
@@ -243,7 +243,7 @@ public class SpnegoSOAPConnection extends SOAPConnection {
     public final SOAPMessage call(final SOAPMessage request, final Object endpoint)
         throws SOAPException {
         
-        LOGGER.finer("endpoint=" + endpoint);
+        LOGGER.fine(() -> "endpoint=" + endpoint);
         
         SOAPMessage message = null;
         final ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -292,13 +292,7 @@ public class SpnegoSOAPConnection extends SOAPConnection {
             // parse the response
             message = this.createMessage(this.conn.getInputStream());
             
-        } catch (MalformedURLException e) {
-            throw new SOAPException(e);
-        } catch (IOException e) {
-            throw new SOAPException(e);
-        } catch (GSSException e) {
-            throw new SOAPException(e);
-        } catch (PrivilegedActionException e) {
+        } catch (IOException | GSSException | PrivilegedActionException e) {
             throw new SOAPException(e);
         } finally {
             try {
@@ -324,11 +318,7 @@ public class SpnegoSOAPConnection extends SOAPConnection {
         
         try {
             document = this.parse(stream);
-        } catch (IOException e) {
-            throw new SOAPException(e);
-        } catch (SAXException e) {
-            throw new SOAPException(e);
-        } catch (ParserConfigurationException e) {
+        } catch (IOException | SAXException | ParserConfigurationException e) {
             throw new SOAPException(e);
         }
 
@@ -361,15 +351,8 @@ public class SpnegoSOAPConnection extends SOAPConnection {
         
         try {
             return this.transform(soapBody);
-        } catch (TransformerFactoryConfigurationError e) {
-            throw new SOAPException(e);
-        } catch (TransformerException e) {
-            throw new SOAPException(e);
-        } catch (IOException e) {
-            throw new SOAPException(e);
-        } catch (SAXException e) {
-            throw new SOAPException(e);
-        } catch (ParserConfigurationException e) {
+        } catch (TransformerFactoryConfigurationError | TransformerException | IOException | SAXException
+                | ParserConfigurationException e) {
             throw new SOAPException(e);
         }
     }
@@ -379,10 +362,7 @@ public class SpnegoSOAPConnection extends SOAPConnection {
         
         this.documentFactory.setNamespaceAware(true);
         
-        final Document document = 
-            this.documentFactory.newDocumentBuilder().parse(stream);
-        
-        return document;
+        return this.documentFactory.newDocumentBuilder().parse(stream);
     }
     
     private SOAPMessage transform(final Node soapBody) throws SOAPException, IOException
@@ -395,26 +375,22 @@ public class SpnegoSOAPConnection extends SOAPConnection {
         
         final NodeList children = soapBody.getChildNodes();
         
-        LOGGER.finer("number of children=" + children.getLength());
+        LOGGER.fine(() -> "number of children=" + children.getLength());
 
         for (int i = 0; i < children.getLength(); i++) {
+            final int pos = i;
+            LOGGER.fine(() -> "child[" + pos + "]=" + children.item(pos).getLocalName());
             
-            LOGGER.finest("child[" + i + "]=" + children.item(i).getLocalName());
-            
-            final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            try (final ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
 
-            transformer.transform(
-                    new DOMSource(children.item(i)), new StreamResult(bos));
-            bos.flush();
-            
-            final ByteArrayInputStream bis = 
-                new ByteArrayInputStream(bos.toByteArray());
-            
-            final Document document = this.parse(bis); 
-            bis.close();
-            bos.close();
+                transformer.transform(new DOMSource(children.item(i)), new StreamResult(bos));
+                bos.flush();
 
-            message.getSOAPBody().addDocument(document);
+                try (final ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray())) {
+                    final Document document = this.parse(bis);
+                    message.getSOAPBody().addDocument(document);
+                }
+            }
         }
 
         return message;

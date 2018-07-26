@@ -54,7 +54,7 @@ import org.ietf.jgss.GSSException;
  * </p>
  * 
  * <p>
- * <b>NTLM</b><br />
+ * <b>NTLM</b><br>
  * MSIE has the ability to negotiate NTLM password hashes over an HTTP session 
  * using Base 64 encoded NTLMSSP messages. This is a staple feature of Microsoft's 
  * Internet Information Server (IIS). Open source libraries exists (ie. jCIFS) that 
@@ -67,7 +67,7 @@ import org.ietf.jgss.GSSException;
  * </p>
  * 
  * <p>
- * <b>Kerberos/SPNEGO</b><br />
+ * <b>Kerberos/SPNEGO</b><br>
  * Kerberos is an authentication protocol that is implemented in AD. The protocol 
  * does not negotiate passwords between a client and a server but rather uses tokens 
  * to securely prove/authenticate to one another over an un-secure network.
@@ -76,14 +76,14 @@ import org.ietf.jgss.GSSException;
  * <p>
  * <b><code>SpnegoHttpFilter</code> does support Kerberos but through the 
  * pseudo-mechanism <code>SPNEGO</code></b>.
+ * </p>
  * <ul>
  * <li><a href="http://en.wikipedia.org/wiki/SPNEGO" target="_blank">Wikipedia: SPNEGO</a></li>
  * <li><a href="http://www.ietf.org/rfc/rfc4178.txt" target="_blank">IETF RFC: 4178</a></li>
  * </ul>
- * </p>
  * 
  * <p>
- * <b>Localhost Support</b><br />
+ * <b>Localhost Support</b><br>
  * The Kerberos protocol requires that a service must have a Principal Name (SPN) 
  * specified. However, there are some use-cases where it may not be practical to 
  * specify an SPN (ie. Tomcat running on a developer's machine). The DNS 
@@ -95,7 +95,6 @@ import org.ietf.jgss.GSSException;
  * 
  * <p>Here's an example configuration:</p>
  * 
- * <p>
  * <pre><code>  &lt;filter&gt;
  *      &lt;filter-name&gt;SpnegoHttpFilter&lt;/filter-name&gt;
  *      &lt;filter-class&gt;org.codelibs.spnego.SpnegoHttpFilter&lt;/filter-class&gt;
@@ -156,11 +155,10 @@ import org.ietf.jgss.GSSException;
  *      &lt;/init-param&gt;
  *  &lt;/filter&gt;
  *</code></pre>
- * </p>
  * 
  * <p><b>Example usage on web page</b></p>
  * 
- * <p><pre>  &lt;html&gt;
+ * <pre>  &lt;html&gt;
  *  &lt;head&gt;
  *      &lt;title&gt;Hello SPNEGO Example&lt;/title&gt;
  *  &lt;/head&gt;
@@ -169,7 +167,6 @@ import org.ietf.jgss.GSSException;
  *  &lt;/body&gt;
  *  &lt;/html&gt;
  *  </pre>
- * </p>
  *
  * <p>
  * Take a look at the <a href="http://spnego.sourceforge.net/reference_docs.html" 
@@ -183,24 +180,24 @@ import org.ietf.jgss.GSSException;
  * @author Darwin V. Felix
  * 
  */
-public final class SpnegoHttpFilter implements Filter {
+public class SpnegoHttpFilter implements Filter {
 
     private static final Logger LOGGER = Logger.getLogger(Constants.LOGGER_NAME);
 
     /** Object for performing Basic and SPNEGO authentication. */
-    private transient SpnegoAuthenticator authenticator;
+    protected SpnegoAuthenticator authenticator;
     
     /** Object for performing User Authorization. */
-    private transient UserAccessControl accessControl;
+    protected UserAccessControl accessControl;
     
     /** AuthZ required for every page. */
-    private transient String sitewide;
+    protected String sitewide;
     
     /** Landing page if user is denied authZ access. */
-    private transient String page403;
+    protected String page403;
     
     /** directories which should not be authenticated irrespective of filter-mapping. */
-    private final transient List<String> excludeDirs = new ArrayList<String>();
+    protected final List<String> excludeDirs = new ArrayList<>();
     
     @Override
     public void init(final FilterConfig filterConfig) throws ServletException {
@@ -210,7 +207,7 @@ public final class SpnegoHttpFilter implements Filter {
             final SpnegoFilterConfig config = SpnegoFilterConfig.getInstance(filterConfig);
             this.excludeDirs.addAll(config.getExcludeDirs());
             
-            LOGGER.info("excludeDirs=" + this.excludeDirs);
+            LOGGER.info(() -> "excludeDirs=" + this.excludeDirs);
             
             // pre-authenticate
             this.authenticator = new SpnegoAuthenticator(config);
@@ -227,22 +224,9 @@ public final class SpnegoHttpFilter implements Filter {
                 this.accessControl.init(props);                
             }
             
-        } catch (final LoginException lex) {
-            throw new ServletException(lex);
-        } catch (final GSSException gsse) {
-            throw new ServletException(gsse);
-        } catch (final PrivilegedActionException pae) {
-            throw new ServletException(pae);
-        } catch (final FileNotFoundException fnfe) {
-            throw new ServletException(fnfe);
-        } catch (final URISyntaxException uri) {
-            throw new ServletException(uri);
-        } catch (InstantiationException iex) {
-            throw new ServletException(iex);
-        } catch (IllegalAccessException iae) {
-            throw new ServletException(iae);
-        } catch (ClassNotFoundException cnfe) {
-            throw new ServletException(cnfe);
+        } catch (final LoginException | GSSException | PrivilegedActionException | FileNotFoundException | URISyntaxException
+                | InstantiationException | IllegalAccessException | ClassNotFoundException e) {
+            throw new ServletException(e);
         }
     }
 
@@ -250,9 +234,7 @@ public final class SpnegoHttpFilter implements Filter {
     public void destroy() {
         this.page403 = null;
         this.sitewide = null;
-        if (null != this.excludeDirs) {
-            this.excludeDirs.clear();
-        }
+        this.excludeDirs.clear();
         if (null != this.accessControl) {
             this.accessControl.destroy();
             this.accessControl = null;
@@ -282,7 +264,7 @@ public final class SpnegoHttpFilter implements Filter {
         try {
             principal = this.authenticator.authenticate(httpRequest, spnegoResponse);
         } catch (GSSException gsse) {
-            LOGGER.severe("HTTP Authorization Header="
+            LOGGER.severe(() -> "HTTP Authorization Header="
                 + httpRequest.getHeader(Constants.AUTHZ_HEADER));
             throw new ServletException(gsse);
         }
@@ -294,19 +276,19 @@ public final class SpnegoHttpFilter implements Filter {
 
         // assert
         if (null == principal) {
-            LOGGER.severe("Principal was null.");
+            LOGGER.severe(() -> "Principal was null.");
             spnegoResponse.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, true);
             return;
         }
 
-        LOGGER.fine("principal=" + principal);
+        LOGGER.fine(() -> "principal=" + principal);
         
         final SpnegoHttpServletRequest spnegoRequest = 
                 new SpnegoHttpServletRequest(httpRequest, principal, this.accessControl);
                 
         // site wide authZ check (if enabled)
         if (!isAuthorized((HttpServletRequest) spnegoRequest)) {
-            LOGGER.info("Principal Not AuthoriZed: " + principal);
+            LOGGER.info(() -> "Principal Not AuthoriZed: " + principal);
             if (this.page403.isEmpty()) {
                 spnegoResponse.setStatus(HttpServletResponse.SC_FORBIDDEN, true);  
             } else {
@@ -315,9 +297,14 @@ public final class SpnegoHttpFilter implements Filter {
             return;            
         }
 
-        chain.doFilter(spnegoRequest, response);
+        processRequest(spnegoRequest, response, chain);
     }
-    
+
+    protected void processRequest(final SpnegoHttpServletRequest request, final ServletResponse response, final FilterChain chain)
+            throws IOException, ServletException {
+        chain.doFilter(request, response);
+    }
+
     private boolean isAuthorized(final HttpServletRequest request) {
         if (null != this.sitewide && null != this.accessControl
                 && !this.accessControl.hasAccess(request.getRemoteUser(), this.sitewide)) {
@@ -342,7 +329,6 @@ public final class SpnegoHttpFilter implements Filter {
     
     private static Properties toProperties(final FilterConfig filterConfig) {
         final Properties props = new Properties();
-        @SuppressWarnings("unchecked")
         final Enumeration<String> it = filterConfig.getInitParameterNames();
         
         while (it.hasMoreElements()) {
@@ -469,10 +455,12 @@ public final class SpnegoHttpFilter implements Filter {
          * here.</p>
          * 
          * <p>By default, Java looks for the file in these locations and order:
+         * </p>
+         * <ul>
          * <li>System Property (java.security.krb5.conf)</li>
          * <li>%JAVA_HOME%/lib/security/krb5.conf</li>
          * <li>%WINDOWS_ROOT%/krb5.ini</li>
-         * </p>
+         * </ul>
          */
         public static final String KRB5_CONF = "spnego.krb5.conf";
         
@@ -490,14 +478,14 @@ public final class SpnegoHttpFilter implements Filter {
          * </pre>
          * 
          */
-        static final String LOGGER_LEVEL = "spnego.logger.level";
+        public static final String LOGGER_LEVEL = "spnego.logger.level";
         
         /**
          * Name of Spnego Logger.
          * 
          * <p>Example: <code>Logger.getLogger(Constants.LOGGER_NAME)</code></p>
          */
-        static final String LOGGER_NAME = "SpnegoHttpFilter"; 
+        public static final String LOGGER_NAME = "SpnegoHttpFilter"; 
         
         /** 
          * Servlet init param name in web.xml <b>spnego.login.conf</b>. 
@@ -518,7 +506,7 @@ public final class SpnegoHttpFilter implements Filter {
         /**
          * NTLM base64-encoded token start value.
          */
-        static final String NTLM_PROLOG = "TlRMTVNT";
+        public static final String NTLM_PROLOG = "TlRMTVNT";
         
         /** 
          * Servlet init param name in web.xml <b>spnego.preauth.password</b>. 

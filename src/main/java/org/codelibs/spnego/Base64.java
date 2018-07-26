@@ -69,7 +69,7 @@ public final class Base64 {
         buffer.append(ALPHABET.charAt(block >>> 12));
         buffer.append(ALPHABET.charAt((block >>> 6) & 0x3f));
         buffer.append(ALPHABET.charAt(block & 0x3f));
-        buffer.append("=");
+        buffer.append('=');
         return buffer.toString();
     }
 

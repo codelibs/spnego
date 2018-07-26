@@ -40,9 +40,9 @@ import org.ietf.jgss.GSSCredential;
  */
 public final class SpnegoPrincipal implements Principal {
 
-    private final transient KerberosPrincipal kerberosPrincipal;
+    private final KerberosPrincipal kerberosPrincipal;
     
-    private final transient GSSCredential delegatedCred;
+    private final GSSCredential delegatedCred;
     
     /**
      * Constructs a SpnegoPrincipal from the provided String input.

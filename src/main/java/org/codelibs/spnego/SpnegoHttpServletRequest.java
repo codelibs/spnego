@@ -40,17 +40,17 @@ import org.ietf.jgss.GSSCredential;
  * @author Darwin V. Felix
  *
  */
-final class SpnegoHttpServletRequest extends HttpServletRequestWrapper 
+public final class SpnegoHttpServletRequest extends HttpServletRequestWrapper 
     implements DelegateServletRequest, SpnegoAccessControl {
     
     private static final String MESSAGE_UNSUPPORTED = 
             "User Access Control has NOT been defined or is NOT supported.";
     
     /** Client Principal. */
-    private final transient SpnegoPrincipal principal;
+    private final SpnegoPrincipal principal;
     
     /** authZ framework interface. */
-    private final transient UserAccessControl accessControl;
+    private final UserAccessControl accessControl;
     
     /**
      * Creates Servlet Request specifying KerberosPrincipal of user.
@@ -251,10 +251,6 @@ final class SpnegoHttpServletRequest extends HttpServletRequestWrapper
      */
     @Override
     public boolean isUserInRole(final String role) {
-        if (null == this.accessControl) {
-            throw new UnsupportedOperationException(MESSAGE_UNSUPPORTED);
-        }
-        
-        return this.accessControl.hasRole(this.getRemoteUser(), role);
+        return hasRole(role);
     }
 }

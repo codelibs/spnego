@@ -112,14 +112,14 @@ public final class SpnegoProvider {
                 req.getHeader(Constants.AUTHZ_HEADER));
         
         if (null == scheme || scheme.getToken().length == 0) {
-            LOGGER.finer("Header Token was NULL");
+            LOGGER.fine(() -> "Header Token was NULL");
             resp.setHeader(Constants.AUTHN_HEADER, Constants.NEGOTIATE_HEADER);
 
             if (basicSupported) {
                 resp.addHeader(Constants.AUTHN_HEADER,
                     Constants.BASIC_HEADER + " realm=\"" + realm + '\"');
             } else {
-                LOGGER.finer("Basic NOT offered: Not Enabled or SSL Required.");
+                LOGGER.fine(() -> "Basic NOT offered: Not Enabled or SSL Required.");
             }
 
             resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED, true);
@@ -130,7 +130,7 @@ public final class SpnegoProvider {
         
         // assert
         if (scheme.isNtlmToken()) {
-            LOGGER.warning("Downgrade NTLM request to Basic Auth.");
+            LOGGER.warning(() -> "Downgrade NTLM request to Basic Auth.");
 
             if (resp.isStatusSet()) {
                 throw new IllegalStateException("HTTP Status already set.");
@@ -188,7 +188,6 @@ public final class SpnegoProvider {
      * @param url HTTP address of server (used for constructing a {@link GSSName}).
      * @return GSSContext 
      * @throws GSSException
-     * @throws PrivilegedActionException
      */
     public static GSSContext getGSSContext(final GSSCredential creds, final URL url) 
         throws GSSException {
@@ -213,7 +212,7 @@ public final class SpnegoProvider {
     public static SpnegoAuthScheme getAuthScheme(final String header) {
 
         if (null == header || header.isEmpty()) {
-            LOGGER.finer("authorization header was missing/null");
+            LOGGER.fine(() -> "authorization header was missing/null");
             return null;
             
         } else if (header.startsWith(Constants.NEGOTIATE_HEADER)) {
@@ -240,7 +239,7 @@ public final class SpnegoProvider {
         try {
             oid = new Oid("1.3.6.1.5.5.2");
         } catch (GSSException gsse) {
-            LOGGER.log(Level.SEVERE, "Unable to create OID 1.3.6.1.5.5.2 !", gsse);
+            LOGGER.log(Level.SEVERE, gsse, () -> "Unable to create OID 1.3.6.1.5.5.2 !");
         }
         return oid;
     }
@@ -292,7 +291,7 @@ public final class SpnegoProvider {
     public static CallbackHandler getUsernamePasswordHandler(
         final String username, final String password) {
 
-        LOGGER.fine("username=" + username + "; password=" + password.hashCode());
+        LOGGER.fine(() -> "username=" + username + "; password=" + password.hashCode());
 
         final CallbackHandler handler = new CallbackHandler() {
             public void handle(final Callback[] callback) {
@@ -304,8 +303,9 @@ public final class SpnegoProvider {
                         final PasswordCallback passCallback = (PasswordCallback) callback[i];
                         passCallback.setPassword(password.toCharArray());
                     } else {
-                        LOGGER.warning("Unsupported Callback i=" + i + "; class=" 
-                                + callback[i].getClass().getName());
+                        final int count = i;
+                        LOGGER.warning(() -> "Unsupported Callback i=" + count + "; class=" 
+                                + callback[count].getClass().getName());
                     }
                 }
             }
