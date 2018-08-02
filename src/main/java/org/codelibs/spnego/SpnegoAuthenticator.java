@@ -156,7 +156,7 @@ public final class SpnegoAuthenticator {
             this.loginContext = new LoginContext(config.getServerLoginModule(), handler);            
         }
 
-        LOGGER.fine(() -> "logging in context");
+        LOGGER.fine(() -> "logging in context: " + loginContext);
         this.loginContext.login();
 
         this.serverCredentials = SpnegoProvider.getServerCredential(
@@ -475,7 +475,7 @@ public final class SpnegoAuthenticator {
     private SpnegoPrincipal doSpnegoAuth(
         final SpnegoAuthScheme scheme, final SpnegoHttpServletResponse resp) 
         throws GSSException, IOException {
-        LOGGER.fine(() -> "Starting SPNEGO Auth...");
+        LOGGER.fine(() -> "Starting SPNEGO Auth: " + scheme);
 
         final String principal;
         final byte[] gss = scheme.getToken();
@@ -487,6 +487,7 @@ public final class SpnegoAuthenticator {
 
         GSSContext context = null;
         GSSCredential delegCred = null;
+        LOGGER.fine(() -> "serverCredentials: " + serverCredentials);
         
         try {
             final byte[] token;
@@ -494,9 +495,16 @@ public final class SpnegoAuthenticator {
             SpnegoAuthenticator.LOCK.lock();
             try {
                 context = SpnegoAuthenticator.MANAGER.createContext(this.serverCredentials);
+                if (LOGGER.isLoggable(Level.FINE)) {
+                    LOGGER.fine("context: " + context);
+                }
                 token = context.acceptSecContext(gss, 0, gss.length);
             } finally {
                 SpnegoAuthenticator.LOCK.unlock();
+            }
+
+            if (LOGGER.isLoggable(Level.FINE)) {
+                LOGGER.fine("Mechanism: " + context.getMech());
             }
 
             if (null == token) {
@@ -507,8 +515,11 @@ public final class SpnegoAuthenticator {
             resp.setHeader(Constants.AUTHN_HEADER, Constants.NEGOTIATE_HEADER 
                     + ' ' + Base64.encode(token));
 
-            if (!context.isEstablished()) {
-                LOGGER.fine(() -> "context not established");
+            final boolean established = context.isEstablished();
+            final boolean protReady = context.isProtReady();
+            LOGGER.fine(() -> "established: " + established + ", protReady: " + protReady);
+            if (!established && !protReady) {
+                LOGGER.fine(() -> "context is not established. ");
                 resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED, true);
                 return null;
             }

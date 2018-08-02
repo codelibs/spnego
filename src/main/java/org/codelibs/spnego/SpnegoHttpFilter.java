@@ -207,7 +207,7 @@ public class SpnegoHttpFilter implements Filter {
             final SpnegoFilterConfig config = SpnegoFilterConfig.getInstance(filterConfig);
             this.excludeDirs.addAll(config.getExcludeDirs());
             
-            LOGGER.info(() -> "excludeDirs=" + this.excludeDirs);
+            LOGGER.fine(() -> "excludeDirs=" + this.excludeDirs);
             
             // pre-authenticate
             this.authenticator = new SpnegoAuthenticator(config);
@@ -222,6 +222,9 @@ public class SpnegoHttpFilter implements Filter {
                 this.accessControl = (UserAccessControl) Class.forName(
                         props.getProperty("spnego.authz.class")).newInstance();
                 this.accessControl.init(props);                
+                LOGGER.fine(() -> "page403=" + this.page403);
+                LOGGER.fine(() -> "sitewide=" + this.sitewide);
+                LOGGER.fine(() -> "accessControl=" + this.accessControl);
             }
             
         } catch (final LoginException | GSSException | PrivilegedActionException | FileNotFoundException | URISyntaxException
@@ -271,6 +274,7 @@ public class SpnegoHttpFilter implements Filter {
 
         // context/auth loop not yet complete
         if (spnegoResponse.isStatusSet()) {
+            LOGGER.fine(() -> "Sending response in authentication.");
             return;
         }
 

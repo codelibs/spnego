@@ -112,4 +112,10 @@ final class SpnegoAuthScheme {
     byte[] getToken() {
         return (null == this.token) ? EMPTY_BYTE_ARRAY : Base64.decode(this.token);
     }
+
+    @Override
+    public String toString() {
+        return "SpnegoAuthScheme [scheme=" + scheme + ", token=" + token + ", basicScheme=" + basicScheme + ", negotiateScheme="
+                + negotiateScheme + ", ntlm=" + ntlm + "]";
+    }
 }
