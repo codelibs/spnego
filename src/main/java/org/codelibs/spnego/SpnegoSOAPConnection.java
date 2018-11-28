@@ -27,6 +27,7 @@ import java.security.PrivilegedActionException;
 import java.util.logging.Logger;
 
 import javax.security.auth.login.LoginException;
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.soap.MessageFactory;
@@ -34,6 +35,7 @@ import javax.xml.soap.MimeHeaders;
 import javax.xml.soap.SOAPConnection;
 import javax.xml.soap.SOAPException;
 import javax.xml.soap.SOAPMessage;
+import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
@@ -367,9 +369,11 @@ public class SpnegoSOAPConnection extends SOAPConnection {
         , TransformerException, SAXException, ParserConfigurationException {
 
         final SOAPMessage message = messageFactory.createMessage();
-        
-        final Transformer transformer = 
-            TransformerFactory.newInstance().newTransformer();
+
+        final TransformerFactory factory = TransformerFactory.newInstance();
+        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+
+        final Transformer transformer = factory.newTransformer();
         
         final NodeList children = soapBody.getChildNodes();
         
