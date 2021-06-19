@@ -1,4 +1,5 @@
 SPNEGO
+[![Java CI with Maven](https://github.com/codelibs/spnego/actions/workflows/maven.yml/badge.svg)](https://github.com/codelibs/spnego/actions/workflows/maven.yml)
 ======
 
 ## Overview
