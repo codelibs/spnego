@@ -65,6 +65,17 @@
 					<charset>UTF-8</charset>
 				</configuration>
 			</plugin>
+			<plugin>
+				<artifactId>maven-jar-plugin</artifactId>
+				<version>3.2.2</version>
+				<configuration>
+					<archive>
+						<manifestEntries>
+							<Automatic-Module-Name>org.codelibs.spnego</Automatic-Module-Name>
+						</manifestEntries>
+					</archive>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 	<dependencies>
