@@ -9,8 +9,7 @@ This project is forked from [spnego.sourceforge.net](http://spnego.sourceforge.n
 ### Issues/Questions
 
 Please file an [issue](https://github.com/codelibs/spnego/issues "issue").
-(Japanese forum is [here](https://github.com/codelibs/codelibs-ja-forum "here").)
 
 ### Version
 
-Version 1.0.1 is in [Maven Central](http://central.maven.org/maven2/org/codelibs/spnego/ "Maven Central").
+Version 1.1.1 is in [Maven Central](https://repo1.maven.org/maven2/org/codelibs/spnego/ "Maven Central").
