@@ -30,12 +30,6 @@ import javax.security.auth.login.LoginException;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.soap.MessageFactory;
-import javax.xml.soap.MimeHeaders;
-import javax.xml.soap.SOAPConnection;
-import javax.xml.soap.SOAPException;
-import javax.xml.soap.SOAPMessage;
-import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
@@ -51,6 +45,12 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
+
+import jakarta.xml.soap.MessageFactory;
+import jakarta.xml.soap.MimeHeaders;
+import jakarta.xml.soap.SOAPConnection;
+import jakarta.xml.soap.SOAPException;
+import jakarta.xml.soap.SOAPMessage;
 
 /**
  * This class can be used to make SOAP calls to a protected SOAP Web Service.

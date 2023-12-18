@@ -18,9 +18,9 @@
 
 package org.codelibs.spnego;
 
-import javax.servlet.ServletRequest;
-
 import org.ietf.jgss.GSSCredential;
+
+import jakarta.servlet.ServletRequest;
 
 /**
  * The default installation of Internet Explorer and Active Directory 

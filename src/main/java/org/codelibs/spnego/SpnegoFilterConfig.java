@@ -31,9 +31,10 @@ import java.util.logging.Logger;
 
 import javax.security.auth.login.AppConfigurationEntry;
 import javax.security.auth.login.Configuration;
-import javax.servlet.FilterConfig;
 
 import org.codelibs.spnego.SpnegoHttpFilter.Constants;
+
+import jakarta.servlet.FilterConfig;
 
 /**
  * Class that applies/enforces web.xml init params.

@@ -34,16 +34,17 @@ import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.kerberos.KerberosPrincipal;
 import javax.security.auth.login.LoginContext;
 import javax.security.auth.login.LoginException;
-import javax.servlet.FilterConfig;
-import javax.servlet.ServletContext;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 
 import org.codelibs.spnego.SpnegoHttpFilter.Constants;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
 import org.ietf.jgss.GSSManager;
+
+import jakarta.servlet.FilterConfig;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Handles <a href="http://en.wikipedia.org/wiki/SPNEGO">SPNEGO</a> or <a

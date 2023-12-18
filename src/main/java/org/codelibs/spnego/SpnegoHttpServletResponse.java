@@ -20,8 +20,8 @@ package org.codelibs.spnego;
 
 import java.io.IOException;
 
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpServletResponseWrapper;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponseWrapper;
 
 /**
  * Class adds capability to track/determine if the HTTP Status 

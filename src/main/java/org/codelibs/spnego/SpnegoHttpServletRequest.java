@@ -20,11 +20,11 @@ package org.codelibs.spnego;
 
 import java.security.Principal;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletRequestWrapper;
-
 import org.codelibs.spnego.SpnegoHttpFilter.Constants;
 import org.ietf.jgss.GSSCredential;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
 
 /**
  * Wrap ServletRequest so we can do our own handling of the 
