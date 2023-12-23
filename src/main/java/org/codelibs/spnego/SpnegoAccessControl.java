@@ -163,9 +163,9 @@ package org.codelibs.spnego;
  * <b>The Java HttpServletRequest Interface and it's isUserInRole method</b>
  * </p>
  * <p>
- * In addition to how the {@link javax.servlet.http.HttpServletRequest} interface 
+ * In addition to how the {@link jakarta.servlet.http.HttpServletRequest} interface 
  * defines a <code>getRemoteUser</code> method to retrieve the name of the authenticated 
- * (authN) user, the {@link javax.servlet.http.HttpServletRequest} interface also defines 
+ * (authN) user, the {@link jakarta.servlet.http.HttpServletRequest} interface also defines 
  * an <code>isUserInRole</code> method that  
  * "<i>returns a boolean indicating whether the authenticated user is included in the 
  * specified logical 'role'</i>". In all of the examples above, a Java Cast was 
