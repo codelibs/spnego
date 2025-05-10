@@ -15,6 +15,19 @@
 			<url>http://www.gnu.org/licenses/lgpl.txt</url>
 		</license>
 	</licenses>
+	<organization>
+		<name>CodeLibs Project</name>
+		<url>https://www.codelibs.org/</url>
+	</organization>
+	<developers>
+		<developer>
+			<id>shinsuke</id>
+			<name>Shinsuke Sugaya</name>
+			<email>shinsuke.sugaya@codelibs.co</email>
+			<organization>CodeLibs Inc.</organization>
+			<organizationUrl>https://codelibs.co</organizationUrl>
+		</developer>
+	</developers>
 	<scm>
 		<connection>scm:git:git@github.com:codelibs/spnego.git</connection>
 		<developerConnection>scm:git:git@github.com:codelibs/spnego.git</developerConnection>
@@ -27,7 +40,7 @@
 		<plugins>
 			<plugin>
 				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.13.0</version>
+				<version>3.14.0</version>
 				<configuration>
 					<release>11</release>
 					<encoding>UTF-8</encoding>
@@ -35,7 +48,7 @@
 			</plugin>
 			<plugin>
 				<artifactId>maven-source-plugin</artifactId>
-				<version>3.2.1</version>
+				<version>3.3.1</version>
 				<executions>
 					<execution>
 						<id>attach-sources</id>
@@ -47,7 +60,7 @@
 			</plugin>
 			<plugin>
 				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>3.7.0</version>
+				<version>3.11.2</version>
 				<configuration>
 					<encoding>UTF-8</encoding>
 					<docencoding>UTF-8</docencoding>
@@ -67,12 +80,12 @@
 			</plugin>
 			<plugin>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.3.0</version>
+				<version>3.5.0</version>
 			</plugin>
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.12</version>
+				<version>0.8.13</version>
 				<executions>
 					<execution>
 						<goals>
