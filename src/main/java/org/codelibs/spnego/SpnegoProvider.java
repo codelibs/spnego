@@ -216,7 +216,7 @@ public final class SpnegoProvider {
             
         } else if (header.startsWith(Constants.NEGOTIATE_HEADER)) {
             final int prefixLength = Constants.NEGOTIATE_HEADER.length();
-            if (header.length() > prefixLength + 1 && header.charAt(prefixLength) == ' ') {
+            if (header.length() > prefixLength && header.charAt(prefixLength) == ' ') {
                 final String token = header.substring(prefixLength + 1);
                 return new SpnegoAuthScheme(Constants.NEGOTIATE_HEADER, token);
             } else {
@@ -226,7 +226,7 @@ public final class SpnegoProvider {
             
         } else if (header.startsWith(Constants.BASIC_HEADER)) {
             final int prefixLength = Constants.BASIC_HEADER.length();
-            if (header.length() > prefixLength + 1 && header.charAt(prefixLength) == ' ') {
+            if (header.length() > prefixLength && header.charAt(prefixLength) == ' ') {
                 final String token = header.substring(prefixLength + 1);
                 return new SpnegoAuthScheme(Constants.BASIC_HEADER, token);
             } else {
