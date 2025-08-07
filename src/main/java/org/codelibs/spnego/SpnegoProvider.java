@@ -215,14 +215,24 @@ public final class SpnegoProvider {
             return null;
             
         } else if (header.startsWith(Constants.NEGOTIATE_HEADER)) {
-            final int prefixLength = Constants.NEGOTIATE_HEADER.length() + 1;
-            final String token = header.length() > prefixLength ? header.substring(prefixLength) : "";
-            return new SpnegoAuthScheme(Constants.NEGOTIATE_HEADER, token);
+            final int prefixLength = Constants.NEGOTIATE_HEADER.length();
+            if (header.length() > prefixLength + 1 && header.charAt(prefixLength) == ' ') {
+                final String token = header.substring(prefixLength + 1);
+                return new SpnegoAuthScheme(Constants.NEGOTIATE_HEADER, token);
+            } else {
+                LOGGER.fine(() -> "Invalid Negotiate authorization header format: " + header);
+                return null;
+            }
             
         } else if (header.startsWith(Constants.BASIC_HEADER)) {
-            final int prefixLength = Constants.BASIC_HEADER.length() + 1;
-            final String token = header.length() > prefixLength ? header.substring(prefixLength) : "";
-            return new SpnegoAuthScheme(Constants.BASIC_HEADER, token);
+            final int prefixLength = Constants.BASIC_HEADER.length();
+            if (header.length() > prefixLength + 1 && header.charAt(prefixLength) == ' ') {
+                final String token = header.substring(prefixLength + 1);
+                return new SpnegoAuthScheme(Constants.BASIC_HEADER, token);
+            } else {
+                LOGGER.fine(() -> "Invalid Basic authorization header format: " + header);
+                return null;
+            }
             
         } else {
             throw new UnsupportedOperationException("Negotiate or Basic Only:" + header);
