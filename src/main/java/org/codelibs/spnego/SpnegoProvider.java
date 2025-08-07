@@ -215,11 +215,13 @@ public final class SpnegoProvider {
             return null;
             
         } else if (header.startsWith(Constants.NEGOTIATE_HEADER)) {
-            final String token = header.substring(Constants.NEGOTIATE_HEADER.length() + 1);
+            final int prefixLength = Constants.NEGOTIATE_HEADER.length() + 1;
+            final String token = header.length() > prefixLength ? header.substring(prefixLength) : "";
             return new SpnegoAuthScheme(Constants.NEGOTIATE_HEADER, token);
             
         } else if (header.startsWith(Constants.BASIC_HEADER)) {
-            final String token = header.substring(Constants.BASIC_HEADER.length() + 1);
+            final int prefixLength = Constants.BASIC_HEADER.length() + 1;
+            final String token = header.length() > prefixLength ? header.substring(prefixLength) : "";
             return new SpnegoAuthScheme(Constants.BASIC_HEADER, token);
             
         } else {
