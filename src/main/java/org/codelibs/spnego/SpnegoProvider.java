@@ -214,19 +214,60 @@ public final class SpnegoProvider {
             LOGGER.fine(() -> "authorization header was missing/null");
             return null;
             
-        } else if (header.startsWith(Constants.NEGOTIATE_HEADER)) {
-            final String token = header.substring(Constants.NEGOTIATE_HEADER.length() + 1);
-            return new SpnegoAuthScheme(Constants.NEGOTIATE_HEADER, token);
-            
-        } else if (header.startsWith(Constants.BASIC_HEADER)) {
-            final String token = header.substring(Constants.BASIC_HEADER.length() + 1);
-            return new SpnegoAuthScheme(Constants.BASIC_HEADER, token);
-            
-        } else {
-            throw new UnsupportedOperationException("Negotiate or Basic Only:" + header);
         }
+
+        final SpnegoAuthScheme scheme = parseAuthHeader(header, Constants.NEGOTIATE_HEADER);
+        if (scheme != null) {
+            return scheme;
+        }
+
+        final SpnegoAuthScheme basicScheme = parseAuthHeader(header, Constants.BASIC_HEADER);
+        if (basicScheme != null) {
+            return basicScheme;
+        }
+
+        LOGGER.fine(() -> "Unsupported authorization scheme in header (length: " + header.length() + ")");
+        throw new UnsupportedOperationException("Negotiate or Basic Only");
     }
-    
+
+    /**
+     * Parses authorization header for a specific scheme.
+     * 
+     * @param header the authorization header
+     * @param scheme the expected scheme (e.g., "Negotiate" or "Basic")
+     * @return SpnegoAuthScheme if valid, null otherwise
+     */
+    private static SpnegoAuthScheme parseAuthHeader(final String header, final String scheme) {
+        final int schemeLength = scheme.length();
+
+        // Case-insensitive scheme matching
+        if (header.length() < schemeLength ||
+            !header.regionMatches(true, 0, scheme, 0, schemeLength)) {
+            return null;
+        }
+
+        // Skip whitespace after scheme
+        int i = schemeLength;
+        while (i < header.length() && Character.isWhitespace(header.charAt(i))) {
+            i++;
+        }
+
+        // Ensure there's a token after whitespace
+        if (i >= header.length()) {
+            LOGGER.fine(() -> "Invalid " + scheme + " header: missing token");
+            return null;
+        }
+
+        // Extract and trim token
+        final String token = header.substring(i).trim();
+        if (token.isEmpty()) {
+            LOGGER.fine(() -> "Invalid " + scheme + " header: empty token");
+            return null;
+        }
+
+        return new SpnegoAuthScheme(scheme, token);
+    }
+
     /**
      * Returns the Universal Object Identifier representation of 
      * the SPNEGO mechanism.
