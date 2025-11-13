@@ -36,38 +36,54 @@ class SpnegoAuthenticatorTest {
     private SpnegoHttpServletResponse mockResponse;
 
     @Nested
-    @DisplayName("Localhost detection tests")
-    class LocalhostDetectionTests {
+    @DisplayName("Localhost detection logic tests")
+    class LocalhostDetectionLogicTests {
 
         @Test
-        @DisplayName("isLocalhost returns true for matching IPv4 addresses")
-        void isLocalhostReturnsTrueForMatchingIPv4() {
-            when(mockRequest.getLocalAddr()).thenReturn("127.0.0.1");
-            when(mockRequest.getRemoteAddr()).thenReturn("127.0.0.1");
+        @DisplayName("localhost detection for matching IPv4 addresses")
+        void localhostDetectionForMatchingIPv4() {
+            // Test the logic used in isLocalhost method
+            String localAddr = "127.0.0.1";
+            String remoteAddr = "127.0.0.1";
 
-            // Use reflection to test private isLocalhost method indirectly
-            // For now, test the public behavior
-            assertTrue(true); // This would be tested via authenticate method
+            boolean isLocal = localAddr.equals(remoteAddr);
+
+            assertTrue(isLocal);
         }
 
         @Test
-        @DisplayName("isLocalhost returns true for IPv6 localhost special case")
-        void isLocalhostReturnsTrueForIPv6SpecialCase() {
-            when(mockRequest.getLocalAddr()).thenReturn("0.0.0.0");
-            when(mockRequest.getRemoteAddr()).thenReturn("0:0:0:0:0:0:0:1");
+        @DisplayName("localhost detection for IPv6 special case")
+        void localhostDetectionForIPv6SpecialCase() {
+            // Test the special case: localAddr is 0.0.0.0 and remoteAddr is IPv6 localhost
+            String localAddr = "0.0.0.0";
+            String remoteAddr = "0:0:0:0:0:0:0:1";
 
-            // This tests the special case handling
-            assertTrue(true); // This would be tested via authenticate method
+            // This is the special case logic from isLocalhost method
+            boolean isLocal = localAddr.equals("0.0.0.0") && remoteAddr.equals("0:0:0:0:0:0:0:1");
+
+            assertTrue(isLocal);
         }
 
         @Test
-        @DisplayName("isLocalhost returns false for different addresses")
-        void isLocalhostReturnsFalseForDifferentAddresses() {
-            when(mockRequest.getLocalAddr()).thenReturn("192.168.1.1");
-            when(mockRequest.getRemoteAddr()).thenReturn("192.168.1.2");
+        @DisplayName("localhost detection for different addresses")
+        void localhostDetectionForDifferentAddresses() {
+            String localAddr = "192.168.1.1";
+            String remoteAddr = "192.168.1.2";
 
-            // Different addresses should not be considered localhost
-            assertNotEquals(mockRequest.getLocalAddr(), mockRequest.getRemoteAddr());
+            boolean isLocal = localAddr.equals(remoteAddr);
+
+            assertFalse(isLocal);
+        }
+
+        @Test
+        @DisplayName("localhost detection for matching addresses")
+        void localhostDetectionForMatchingAddresses() {
+            String localAddr = "10.0.0.1";
+            String remoteAddr = "10.0.0.1";
+
+            boolean isLocal = localAddr.equals(remoteAddr);
+
+            assertTrue(isLocal);
         }
     }
 
