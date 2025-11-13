@@ -377,7 +377,7 @@ class SpnegoHttpURLConnectionTest {
 
         @Test
         @DisplayName("setConfidentiality true with messageIntegrity false throws exception")
-        void confidentialityWithoutIntegrityThrowsException() {
+        void confidentialityWithoutIntegrityThrowsException() throws Exception {
             connection.setMessageIntegrity(false);
             connection.setConfidentiality(true);
 
