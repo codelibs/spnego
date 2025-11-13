@@ -457,7 +457,7 @@ class SpnegoAuthenticatorTest {
         @Test
         @DisplayName("Basic auth with domain prefix extracts username correctly")
         void basicAuthHandlesDomainPrefix() throws Exception {
-            // Test validates that domain prefix (DOMAIN\username) is correctly stripped
+            // Test validates that domain prefix (DOMAIN\\username) is correctly stripped
             // The actual format is "DOMAIN\\username:password" in the token
             String tokenWithDomain = "DOMAIN\\testuser:password";
             String[] parts = tokenWithDomain.split(":", 2);
