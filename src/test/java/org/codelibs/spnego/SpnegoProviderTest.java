@@ -19,6 +19,7 @@ import org.codelibs.spnego.SpnegoHttpFilter.Constants;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -442,6 +443,7 @@ class SpnegoProviderTest {
 
     @Nested
     @DisplayName("getGSSContext() tests")
+    @Disabled("Requires Kerberos realm configuration")
     class GetGSSContextTests {
 
         @Test

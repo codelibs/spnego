@@ -528,7 +528,6 @@ class SpnegoAuthenticatorTest {
                 // Not localhost
                 when(mockRequest.getLocalAddr()).thenReturn("192.168.1.1");
                 when(mockRequest.getRemoteAddr()).thenReturn("192.168.1.100");
-                when(mockRequest.isSecure()).thenReturn(true);
 
                 SpnegoPrincipal principal = authenticator.authenticate(mockRequest, mockResponse);
 
@@ -576,7 +575,6 @@ class SpnegoAuthenticatorTest {
 
                 when(mockRequest.getLocalAddr()).thenReturn("192.168.1.1");
                 when(mockRequest.getRemoteAddr()).thenReturn("192.168.1.100");
-                when(mockRequest.isSecure()).thenReturn(true);
 
                 assertThrows(UnsupportedOperationException.class, () -> {
                     authenticator.authenticate(mockRequest, mockResponse);
@@ -1034,7 +1032,6 @@ class SpnegoAuthenticatorTest {
 
                 when(mockRequest.getLocalAddr()).thenReturn("192.168.1.1");
                 when(mockRequest.getRemoteAddr()).thenReturn("192.168.1.100");
-                when(mockRequest.isSecure()).thenReturn(true);
 
                 SpnegoPrincipal principal = authenticator.authenticate(mockRequest, mockResponse);
 
@@ -1084,7 +1081,6 @@ class SpnegoAuthenticatorTest {
 
                 when(mockRequest.getLocalAddr()).thenReturn("192.168.1.1");
                 when(mockRequest.getRemoteAddr()).thenReturn("192.168.1.100");
-                when(mockRequest.isSecure()).thenReturn(true);
 
                 assertThrows(IllegalArgumentException.class, () -> {
                     authenticator.authenticate(mockRequest, mockResponse);
