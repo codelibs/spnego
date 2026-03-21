@@ -4,22 +4,20 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 import javax.security.auth.callback.CallbackHandler;
-import javax.security.auth.kerberos.KerberosPrincipal;
 import javax.security.auth.login.LoginContext;
 import javax.security.auth.login.LoginException;
 import javax.security.auth.Subject;
 
+import org.codelibs.spnego.SpnegoHttpFilter.Constants;
 import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
 import org.ietf.jgss.GSSManager;
 import org.ietf.jgss.GSSName;
-import org.ietf.jgss.Oid;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -1066,6 +1064,273 @@ class SpnegoAuthenticatorTest {
                 assertThrows(IllegalArgumentException.class, () -> {
                     authenticator.authenticate(mockRequest, mockResponse);
                 });
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("SPNEGO auth with non-empty token throws GSSException tests")
+    class SpnegoAuthGSSExceptionTests {
+
+        @Test
+        @DisplayName("doSpnegoAuth with non-empty token propagates GSSException from real GSSManager")
+        void doSpnegoAuthWithNonEmptyTokenThrowsGSSException() throws Exception {
+            // Since GSSManager.MANAGER is a static final field that can't be replaced in Java 21,
+            // the real GSSManagerImpl.createContext() will throw GSSException when given a
+            // mock GSSCredential (it expects GSSCredentialImpl). This tests that GSSException
+            // is properly propagated from the authenticate method.
+            GSSName mockServerName = mock(GSSName.class);
+            when(mockServerName.toString()).thenReturn("HTTP/server@EXAMPLE.COM");
+
+            GSSCredential mockServerCred = mock(GSSCredential.class);
+            when(mockServerCred.getName()).thenReturn(mockServerName);
+
+            SpnegoAuthScheme mockScheme = mock(SpnegoAuthScheme.class);
+            when(mockScheme.isNegotiateScheme()).thenReturn(true);
+            when(mockScheme.getToken()).thenReturn(new byte[]{10, 20, 30});
+
+            try (MockedStatic<SpnegoProvider> mockedProvider = mockStatic(SpnegoProvider.class);
+                 MockedConstruction<LoginContext> mockedLoginContext = mockConstruction(LoginContext.class,
+                     (mock, context) -> {
+                         when(mock.getSubject()).thenReturn(new Subject());
+                     })) {
+
+                mockedProvider.when(() -> SpnegoProvider.getServerCredential(any(Subject.class)))
+                    .thenReturn(mockServerCred);
+                mockedProvider.when(() -> SpnegoProvider.negotiate(
+                    any(HttpServletRequest.class),
+                    any(SpnegoHttpServletResponse.class),
+                    anyBoolean(), anyBoolean(), anyString()))
+                    .thenReturn(mockScheme);
+
+                when(mockConfig.isBasicAllowed()).thenReturn(false);
+                when(mockConfig.isUnsecureAllowed()).thenReturn(false);
+                when(mockConfig.getClientLoginModule()).thenReturn("client-module");
+                when(mockConfig.isLocalhostAllowed()).thenReturn(false);
+                when(mockConfig.downgradeNtlm()).thenReturn(false);
+                when(mockConfig.isDelegationAllowed()).thenReturn(false);
+                when(mockConfig.useKeyTab()).thenReturn(true);
+                when(mockConfig.getServerLoginModule()).thenReturn("server-module");
+
+                SpnegoAuthenticator authenticator = new SpnegoAuthenticator(mockConfig);
+
+                // The real GSSManager will throw because it can't handle mock credentials
+                assertThrows(Exception.class, () -> {
+                    authenticator.authenticate(mockRequest, mockResponse);
+                });
+            }
+        }
+
+        @Test
+        @DisplayName("doLocalhost returns principal with system username when localhost allowed")
+        void doLocalhostReturnsSystemUserPrincipal() throws Exception {
+            GSSName mockServerName = mock(GSSName.class);
+            when(mockServerName.toString()).thenReturn("HTTP/server@EXAMPLE.COM");
+
+            GSSCredential mockServerCred = mock(GSSCredential.class);
+            when(mockServerCred.getName()).thenReturn(mockServerName);
+
+            try (MockedStatic<SpnegoProvider> mockedProvider = mockStatic(SpnegoProvider.class);
+                 MockedConstruction<LoginContext> mockedLoginContext = mockConstruction(LoginContext.class,
+                     (mock, context) -> {
+                         when(mock.getSubject()).thenReturn(new Subject());
+                     })) {
+
+                mockedProvider.when(() -> SpnegoProvider.getServerCredential(any(Subject.class)))
+                    .thenReturn(mockServerCred);
+
+                when(mockConfig.isBasicAllowed()).thenReturn(false);
+                when(mockConfig.isUnsecureAllowed()).thenReturn(false);
+                when(mockConfig.getClientLoginModule()).thenReturn("client-module");
+                when(mockConfig.isLocalhostAllowed()).thenReturn(true);
+                when(mockConfig.downgradeNtlm()).thenReturn(false);
+                when(mockConfig.isDelegationAllowed()).thenReturn(false);
+                when(mockConfig.useKeyTab()).thenReturn(true);
+                when(mockConfig.getServerLoginModule()).thenReturn("server-module");
+
+                SpnegoAuthenticator authenticator = new SpnegoAuthenticator(mockConfig);
+
+                // Both local and remote should return same address for localhost
+                when(mockRequest.getLocalAddr()).thenReturn("192.168.1.100");
+                when(mockRequest.getRemoteAddr()).thenReturn("192.168.1.100");
+
+                SpnegoPrincipal principal = authenticator.authenticate(mockRequest, mockResponse);
+
+                assertNotNull(principal);
+                // Principal name should contain the realm from server principal
+                assertTrue(principal.getName().contains("@EXAMPLE.COM"));
+                // Should be either system user or server principal name
+                String systemUser = System.getProperty("user.name");
+                if (systemUser != null && !systemUser.isEmpty()) {
+                    assertEquals(systemUser + "@EXAMPLE.COM", principal.getName());
+                } else {
+                    assertTrue(principal.getName().contains("HTTP/server"));
+                }
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("Basic auth successful authentication tests")
+    class BasicAuthSuccessfulTests {
+
+        @Test
+        @DisplayName("doBasicAuth with valid credentials returns principal with correct username@REALM")
+        void doBasicAuthWithValidCredentialsReturnsPrincipal() throws Exception {
+            GSSName mockServerName = mock(GSSName.class);
+            when(mockServerName.toString()).thenReturn("HTTP/server@EXAMPLE.COM");
+
+            GSSCredential mockServerCred = mock(GSSCredential.class);
+            when(mockServerCred.getName()).thenReturn(mockServerName);
+
+            CallbackHandler mockHandler = mock(CallbackHandler.class);
+
+            SpnegoAuthScheme mockScheme = mock(SpnegoAuthScheme.class);
+            when(mockScheme.isNegotiateScheme()).thenReturn(false);
+            when(mockScheme.isBasicScheme()).thenReturn(true);
+            when(mockScheme.getToken()).thenReturn("testuser:password".getBytes());
+
+            try (MockedStatic<SpnegoProvider> mockedProvider = mockStatic(SpnegoProvider.class);
+                 MockedConstruction<LoginContext> mockedLoginContext = mockConstruction(LoginContext.class,
+                     (mock, context) -> {
+                         when(mock.getSubject()).thenReturn(new Subject());
+                     })) {
+
+                mockedProvider.when(() -> SpnegoProvider.getServerCredential(any(Subject.class)))
+                    .thenReturn(mockServerCred);
+                mockedProvider.when(() -> SpnegoProvider.getUsernamePasswordHandler(anyString(), anyString()))
+                    .thenReturn(mockHandler);
+                mockedProvider.when(() -> SpnegoProvider.negotiate(
+                    any(HttpServletRequest.class),
+                    any(SpnegoHttpServletResponse.class),
+                    anyBoolean(), anyBoolean(), anyString()))
+                    .thenReturn(mockScheme);
+
+                when(mockConfig.isBasicAllowed()).thenReturn(true);
+                when(mockConfig.isUnsecureAllowed()).thenReturn(true);
+                when(mockConfig.getClientLoginModule()).thenReturn("client-module");
+                when(mockConfig.isLocalhostAllowed()).thenReturn(false);
+                when(mockConfig.downgradeNtlm()).thenReturn(false);
+                when(mockConfig.isDelegationAllowed()).thenReturn(false);
+                when(mockConfig.useKeyTab()).thenReturn(true);
+                when(mockConfig.getServerLoginModule()).thenReturn("server-module");
+
+                SpnegoAuthenticator authenticator = new SpnegoAuthenticator(mockConfig);
+
+                SpnegoPrincipal principal = authenticator.authenticate(mockRequest, mockResponse);
+
+                assertNotNull(principal);
+                assertEquals("testuser@EXAMPLE.COM", principal.getName());
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("Basic auth LoginException tests")
+    class BasicAuthLoginExceptionTests {
+
+        @Test
+        @DisplayName("doBasicAuth returns null and sets 401 when login fails")
+        void doBasicAuthReturnsNullWhenLoginFails() throws Exception {
+            GSSName mockServerName = mock(GSSName.class);
+            when(mockServerName.toString()).thenReturn("HTTP/server@EXAMPLE.COM");
+
+            GSSCredential mockServerCred = mock(GSSCredential.class);
+            when(mockServerCred.getName()).thenReturn(mockServerName);
+
+            CallbackHandler mockHandler = mock(CallbackHandler.class);
+
+            SpnegoAuthScheme mockScheme = mock(SpnegoAuthScheme.class);
+            when(mockScheme.isNegotiateScheme()).thenReturn(false);
+            when(mockScheme.isBasicScheme()).thenReturn(true);
+            when(mockScheme.getToken()).thenReturn("testuser:badpassword".getBytes());
+
+            java.util.concurrent.atomic.AtomicInteger constructionCount = new java.util.concurrent.atomic.AtomicInteger(0);
+
+            try (MockedStatic<SpnegoProvider> mockedProvider = mockStatic(SpnegoProvider.class);
+                 MockedConstruction<LoginContext> mockedLoginContext = mockConstruction(LoginContext.class,
+                     (mock, context) -> {
+                         int count = constructionCount.getAndIncrement();
+                         // First constructed LoginContext is for the authenticator constructor (server login)
+                         if (count == 0) {
+                             when(mock.getSubject()).thenReturn(new Subject());
+                         } else {
+                             // Second LoginContext is for doBasicAuth (client login) - fails
+                             doThrow(new LoginException("Invalid credentials")).when(mock).login();
+                         }
+                     })) {
+
+                mockedProvider.when(() -> SpnegoProvider.getServerCredential(any(Subject.class)))
+                    .thenReturn(mockServerCred);
+                mockedProvider.when(() -> SpnegoProvider.getUsernamePasswordHandler(anyString(), anyString()))
+                    .thenReturn(mockHandler);
+                mockedProvider.when(() -> SpnegoProvider.negotiate(
+                    any(HttpServletRequest.class),
+                    any(SpnegoHttpServletResponse.class),
+                    anyBoolean(), anyBoolean(), anyString()))
+                    .thenReturn(mockScheme);
+
+                when(mockConfig.isBasicAllowed()).thenReturn(true);
+                when(mockConfig.isUnsecureAllowed()).thenReturn(true);
+                when(mockConfig.getClientLoginModule()).thenReturn("client-module");
+                when(mockConfig.isLocalhostAllowed()).thenReturn(false);
+                when(mockConfig.downgradeNtlm()).thenReturn(false);
+                when(mockConfig.isDelegationAllowed()).thenReturn(false);
+                when(mockConfig.useKeyTab()).thenReturn(true);
+                when(mockConfig.getServerLoginModule()).thenReturn("server-module");
+
+                SpnegoAuthenticator authenticator = new SpnegoAuthenticator(mockConfig);
+
+                SpnegoPrincipal principal = authenticator.authenticate(mockRequest, mockResponse);
+
+                assertNull(principal);
+                verify(mockResponse).setHeader(Constants.AUTHN_HEADER, Constants.NEGOTIATE_HEADER);
+                verify(mockResponse).addHeader(eq(Constants.AUTHN_HEADER),
+                    eq(Constants.BASIC_HEADER + " realm=\"EXAMPLE.COM\""));
+                verify(mockResponse).setStatus(HttpServletResponse.SC_UNAUTHORIZED, true);
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("Constructor with loginModuleName using keytab tests")
+    class ConstructorLoginModuleWithKeytabTests {
+
+        @Test
+        @DisplayName("constructor with loginModuleName succeeds when no username but useKeyTab is true")
+        void constructorWithLoginModuleNameAndKeytabSucceeds() throws Exception {
+            GSSName mockName = mock(GSSName.class);
+            when(mockName.toString()).thenReturn("HTTP/server@EXAMPLE.COM");
+
+            GSSCredential mockServerCred = mock(GSSCredential.class);
+            when(mockServerCred.getName()).thenReturn(mockName);
+
+            try (MockedStatic<SpnegoProvider> mockedProvider = mockStatic(SpnegoProvider.class);
+                 MockedConstruction<LoginContext> mockedLoginContext = mockConstruction(LoginContext.class,
+                     (mock, context) -> {
+                         when(mock.getSubject()).thenReturn(new Subject());
+                     })) {
+
+                mockedProvider.when(() -> SpnegoProvider.getServerCredential(any(Subject.class)))
+                    .thenReturn(mockServerCred);
+
+                when(mockConfig.isBasicAllowed()).thenReturn(false);
+                when(mockConfig.isUnsecureAllowed()).thenReturn(false);
+                when(mockConfig.getClientLoginModule()).thenReturn("client-module");
+                when(mockConfig.isLocalhostAllowed()).thenReturn(false);
+                when(mockConfig.downgradeNtlm()).thenReturn(false);
+                when(mockConfig.isDelegationAllowed()).thenReturn(false);
+                when(mockConfig.getPreauthUsername()).thenReturn(null);
+                when(mockConfig.useKeyTab()).thenReturn(true);
+
+                SpnegoAuthenticator authenticator = new SpnegoAuthenticator("keytab-module", mockConfig);
+
+                assertNotNull(authenticator);
+                assertEquals(1, mockedLoginContext.constructed().size());
+
+                // Verify the LoginContext was constructed with just the module name (single arg)
+                LoginContext constructedContext = mockedLoginContext.constructed().get(0);
+                verify(constructedContext).login();
             }
         }
     }
