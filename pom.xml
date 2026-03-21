@@ -75,6 +75,10 @@
 						<include>**/*Test.java</include>
 						<include>**/*Tests.java</include>
 					</includes>
+					<argLine>
+						--add-opens java.base/java.lang.reflect=ALL-UNNAMED
+						--add-opens java.base/java.lang=ALL-UNNAMED
+					</argLine>
 				</configuration>
 			</plugin>
 			<plugin>

@@ -148,10 +148,20 @@ class SpnegoHttpServletRequestTest {
         @DisplayName("default remote user when principal is null")
         void defaultRemoteUserNullPrincipal() {
             when(mockRequest.getRemoteUser()).thenReturn("defaultuser");
-            
+
             SpnegoHttpServletRequest request = new SpnegoHttpServletRequest(mockRequest, null);
-            
+
             assertEquals("defaultuser", request.getRemoteUser());
+        }
+
+        @Test
+        @DisplayName("remote user with multiple @ signs splits on first @")
+        void remoteUserWithMultipleAtSigns() {
+            when(mockPrincipal.getName()).thenReturn("user@sub@EXAMPLE.COM");
+
+            SpnegoHttpServletRequest request = new SpnegoHttpServletRequest(mockRequest, mockPrincipal);
+
+            assertEquals("user", request.getRemoteUser());
         }
     }
 
@@ -173,10 +183,20 @@ class SpnegoHttpServletRequestTest {
         @DisplayName("null delegated credential")
         void nullDelegatedCredential() {
             when(mockPrincipal.getDelegatedCredential()).thenReturn(null);
-            
+
             SpnegoHttpServletRequest request = new SpnegoHttpServletRequest(mockRequest, mockPrincipal);
-            
+
             assertNull(request.getDelegatedCredential());
+        }
+
+        @Test
+        @DisplayName("getDelegatedCredential when principal is null throws NullPointerException")
+        void getDelegatedCredentialNullPrincipal() {
+            SpnegoHttpServletRequest request = new SpnegoHttpServletRequest(mockRequest, null);
+
+            assertThrows(NullPointerException.class, () -> {
+                request.getDelegatedCredential();
+            });
         }
     }
 
@@ -290,9 +310,43 @@ class SpnegoHttpServletRequestTest {
         void isUserInRoleDelegatesToHasRole() {
             when(mockPrincipal.getName()).thenReturn("testuser@EXAMPLE.COM");
             when(mockAccessControl.hasRole("testuser", "manager")).thenReturn(true);
-            
+
             assertTrue(requestWithAccessControl.isUserInRole("manager"));
             verify(mockAccessControl).hasRole("testuser", "manager");
+        }
+
+        @Test
+        @DisplayName("hasRole with varargs without access control throws exception")
+        void hasRoleWithVarargsWithoutAccessControl() {
+            assertThrows(UnsupportedOperationException.class, () -> {
+                requestWithoutAccessControl.hasRole("featureX", "featureY", "featureZ");
+            });
+        }
+
+        @Test
+        @DisplayName("hasAccess with varargs without access control throws exception")
+        void hasAccessWithVarargsWithoutAccessControl() {
+            assertThrows(UnsupportedOperationException.class, () -> {
+                requestWithoutAccessControl.hasAccess("resourceX", "resourceY");
+            });
+        }
+
+        @Test
+        @DisplayName("isUserInRole without access control throws exception")
+        void isUserInRoleWithoutAccessControl() {
+            assertThrows(UnsupportedOperationException.class, () -> {
+                requestWithoutAccessControl.isUserInRole("admin");
+            });
+        }
+
+        @Test
+        @DisplayName("hasRole returns false when access control denies")
+        void hasRoleReturnsFalseWhenDenied() {
+            when(mockPrincipal.getName()).thenReturn("testuser@EXAMPLE.COM");
+            when(mockAccessControl.hasRole("testuser", "admin")).thenReturn(false);
+
+            assertFalse(requestWithAccessControl.hasRole("admin"));
+            verify(mockAccessControl).hasRole("testuser", "admin");
         }
     }
 
