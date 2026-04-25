@@ -41,7 +41,7 @@
 		<plugins>
 			<plugin>
 				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.14.0</version>
+				<version>3.15.0</version>
 				<configuration>
 					<release>11</release>
 					<encoding>UTF-8</encoding>
@@ -49,7 +49,7 @@
 			</plugin>
 			<plugin>
 				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>3.11.2</version>
+				<version>3.12.0</version>
 				<configuration>
 					<encoding>UTF-8</encoding>
 					<docencoding>UTF-8</docencoding>
@@ -58,7 +58,7 @@
 			</plugin>
 			<plugin>
 				<artifactId>maven-jar-plugin</artifactId>
-				<version>3.4.2</version>
+				<version>3.5.0</version>
 				<configuration>
 					<archive>
 						<manifestEntries>
@@ -69,7 +69,7 @@
 			</plugin>
 			<plugin>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.5.0</version>
+				<version>3.5.5</version>
 				<configuration>
 					<includes>
 						<include>**/*Test.java</include>
@@ -84,7 +84,7 @@
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.13</version>
+				<version>0.8.14</version>
 				<executions>
 					<execution>
 						<goals>
@@ -101,23 +101,9 @@
 				</executions>
 			</plugin>
 			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-gpg-plugin</artifactId>
-				<version>3.2.7</version>
-				<executions>
-					<execution>
-						<id>sign-artifacts</id>
-						<phase>verify</phase>
-						<goals>
-							<goal>sign</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
-			<plugin>
 				<groupId>org.sonatype.central</groupId>
 				<artifactId>central-publishing-maven-plugin</artifactId>
-				<version>0.7.0</version>
+				<version>0.10.0</version>
 				<extensions>true</extensions>
 				<configuration>
 					<publishingServerId>central</publishingServerId>
@@ -125,11 +111,37 @@
 			</plugin>
 		</plugins>
 	</build>
+	<profiles>
+		<profile>
+			<id>release</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-gpg-plugin</artifactId>
+						<version>3.2.8</version>
+						<executions>
+							<execution>
+								<id>sign-artifacts</id>
+								<phase>verify</phase>
+								<goals>
+									<goal>sign</goal>
+								</goals>
+								<configuration>
+									<bestPractices>true</bestPractices>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 	<dependencies>
 		<dependency>
 			<groupId>com.sun.xml.ws</groupId>
 			<artifactId>jaxws-rt</artifactId>
-			<version>4.0.2</version>
+			<version>4.0.4</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
@@ -147,13 +159,13 @@
 		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-core</artifactId>
-			<version>5.7.0</version>
+			<version>5.23.0</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-junit-jupiter</artifactId>
-			<version>5.7.0</version>
+			<version>5.23.0</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
