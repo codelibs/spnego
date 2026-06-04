@@ -491,7 +491,8 @@ public interface UserAccessControl {
     
     /**
      * Returns the user's info object for the given user.
-     * 
+     *
+     * @param username the username to look up
      * @return the user's info object for the given user
      */
     UserInfo getUserInfo(final String username);
@@ -505,10 +506,12 @@ public interface UserAccessControl {
      * </p>
      * 
      * <p>
-     * If this method has been called and a reference to the instance is 
-     * maintained, this method should not be called again unless the destroy 
+     * If this method has been called and a reference to the instance is
+     * maintained, this method should not be called again unless the destroy
      * method is called first.
      * </p>
+     *
+     * @param props the properties used to initialize this instance
      */
-    void init(final Properties props); 
+    void init(final Properties props);
 }

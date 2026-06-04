@@ -159,7 +159,7 @@ public final class SpnegoProvider {
      * 
      * @param subject the person to be authenticated
      * @return GSSCredential to be used for creating a security context.
-     * @throws PrivilegedActionException
+     * @throws PrivilegedActionException if a privileged action fails
      */
     public static GSSCredential getClientCredential(final Subject subject)
         throws PrivilegedActionException {
@@ -185,8 +185,8 @@ public final class SpnegoProvider {
      * 
      * @param creds credentials of the person to be authenticated
      * @param url HTTP address of server (used for constructing a {@link GSSName}).
-     * @return GSSContext 
-     * @throws GSSException
+     * @return GSSContext
+     * @throws GSSException if a GSS-API error occurs
      */
     public static GSSContext getGSSContext(final GSSCredential creds, final URL url) 
         throws GSSException {

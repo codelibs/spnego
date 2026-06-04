@@ -131,11 +131,11 @@ public final class SpnegoAuthenticator {
      * Create an authenticator for SPNEGO and/or BASIC authentication.
      * 
      * @param config servlet filter initialization parameters
-     * @throws LoginException 
-     * @throws GSSException 
-     * @throws PrivilegedActionException 
+     * @throws LoginException if the server fails to login
+     * @throws GSSException if a GSS-API error occurs
+     * @throws PrivilegedActionException if a privileged action fails
      */
-    public SpnegoAuthenticator(final SpnegoFilterConfig config) 
+    public SpnegoAuthenticator(final SpnegoFilterConfig config)
         throws LoginException, GSSException, PrivilegedActionException {
 
         LOGGER.fine(() -> "config=" + config);
@@ -193,12 +193,12 @@ public final class SpnegoAuthenticator {
      * </code>
      * </p>
      * 
-     * @param config
-     * @throws LoginException
-     * @throws GSSException
-     * @throws PrivilegedActionException
-     * @throws FileNotFoundException
-     * @throws URISyntaxException
+     * @param config map of configuration parameters
+     * @throws LoginException if the server fails to login
+     * @throws GSSException if a GSS-API error occurs
+     * @throws PrivilegedActionException if a privileged action fails
+     * @throws FileNotFoundException if a referenced file cannot be found
+     * @throws URISyntaxException if a configured URI is malformed
      */
     public SpnegoAuthenticator(final Map<String, String> config) 
         throws LoginException, GSSException, PrivilegedActionException
@@ -238,9 +238,9 @@ public final class SpnegoAuthenticator {
      * 
      * @param loginModuleName module named defined in login.conf
      * @param config servlet filter initialization parameters
-     * @throws LoginException 
-     * @throws GSSException 
-     * @throws PrivilegedActionException 
+     * @throws LoginException if the server fails to login
+     * @throws GSSException if a GSS-API error occurs
+     * @throws PrivilegedActionException if a privileged action fails
      */
     public SpnegoAuthenticator(final String loginModuleName
         , final SpnegoFilterConfig config) throws LoginException
@@ -293,8 +293,8 @@ public final class SpnegoAuthenticator {
      * @param resp servlet response
      * 
      * @return null if auth not complete else SpnegoPrincipal of client
-     * @throws GSSException 
-     * @throws IOException 
+     * @throws GSSException if a GSS-API error occurs
+     * @throws IOException if an I/O error occurs
      */
     public SpnegoPrincipal authenticate(final HttpServletRequest req
         , final SpnegoHttpServletResponse resp) throws GSSException
@@ -549,6 +549,11 @@ public final class SpnegoAuthenticator {
         return new SpnegoPrincipal(principal, KerberosPrincipal.KRB_NT_PRINCIPAL, delegCred);
     }
     
+    /**
+     * Returns the realm of the server principal used for pre-authentication.
+     *
+     * @return the server's Kerberos realm
+     */
     public String getServerRealm() {
         return this.serverPrincipal.getRealm();
     }

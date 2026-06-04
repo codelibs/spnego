@@ -183,6 +183,13 @@ import jakarta.servlet.http.HttpServletResponse;
  */
 public class SpnegoHttpFilter implements Filter {
 
+    /**
+     * Creates a new SPNEGO HTTP filter.
+     */
+    public SpnegoHttpFilter() {
+        super();
+    }
+
     private static final Logger LOGGER = Logger.getLogger(Constants.LOGGER_NAME);
 
     /** Object for performing Basic and SPNEGO authentication. */
@@ -305,6 +312,20 @@ public class SpnegoHttpFilter implements Filter {
         processRequest(spnegoRequest, response, chain);
     }
 
+    /**
+     * Passes the authenticated request down the filter chain.
+     *
+     * <p>
+     * Subclasses may override this method to perform additional processing
+     * after authentication has completed.
+     * </p>
+     *
+     * @param request the authenticated servlet request
+     * @param response the servlet response
+     * @param chain the filter chain
+     * @throws IOException if an I/O error occurs
+     * @throws ServletException if a servlet error occurs
+     */
     protected void processRequest(final SpnegoHttpServletRequest request, final ServletResponse response, final FilterChain chain)
             throws IOException, ServletException {
         chain.doFilter(request, response);
