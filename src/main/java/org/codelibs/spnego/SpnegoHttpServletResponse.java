@@ -41,8 +41,9 @@ public final class SpnegoHttpServletResponse extends HttpServletResponseWrapper 
     private boolean statusSet = false;
 
     /**
-     * 
-     * @param response
+     * Wraps the given HTTP servlet response.
+     *
+     * @param response the HTTP servlet response to wrap
      */
     public SpnegoHttpServletResponse(final HttpServletResponse response) {
         super(response);
@@ -69,8 +70,8 @@ public final class SpnegoHttpServletResponse extends HttpServletResponseWrapper 
      * 
      * @param status http status code
      * @param immediate set to true to set content len to zero and flush
-     * @throws IOException 
-     * 
+     * @throws IOException if an I/O error occurs while flushing the buffer
+     *
      * @see #setStatus(int)
      */
     public void setStatus(final int status, final boolean immediate) throws IOException {

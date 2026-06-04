@@ -149,8 +149,8 @@ public class SpnegoSOAPConnection extends SOAPConnection {
      * file being specified by "java.security.auth.login.config" or 
      * where LoginContext relies on tgtsessionkey.
      * 
-     * @param loginModuleName 
-     * @throws LoginException 
+     * @param loginModuleName module name defined in login.conf
+     * @throws LoginException if the login fails
      */
     public SpnegoSOAPConnection(final String loginModuleName) throws LoginException {
         super();
@@ -199,8 +199,8 @@ public class SpnegoSOAPConnection extends SOAPConnection {
      * 
      * @param creds credentials to use
      * @param dispose true if GSSCredential should be diposed after use
-     * @param confidential
-     * @param integrity
+     * @param confidential true to require message confidentiality
+     * @param integrity true to require mutual message integrity
      */
     public SpnegoSOAPConnection(final GSSCredential creds, final boolean dispose
         , final boolean confidential, final boolean integrity) {
@@ -221,10 +221,10 @@ public class SpnegoSOAPConnection extends SOAPConnection {
      * file. However, the "java.security.auth.login.config" property must still
      * be set prior to instantiating this object.
      * 
-     * @param loginModuleName 
-     * @param username 
-     * @param password 
-     * @throws LoginException 
+     * @param loginModuleName module name defined in login.conf
+     * @param username the username to authenticate as
+     * @param password the password for the user
+     * @throws LoginException if the login fails
      */
     public SpnegoSOAPConnection(final String loginModuleName,
         final String username, final String password) throws LoginException {

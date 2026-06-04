@@ -18,6 +18,9 @@
 
 package org.codelibs.spnego;
 
+/**
+ * Encodes and decodes data to and from Base64 notation.
+ */
 public final class Base64 {
 
     private static final String ALPHABET =
