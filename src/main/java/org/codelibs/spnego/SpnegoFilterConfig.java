@@ -80,11 +80,13 @@ public class SpnegoFilterConfig { // NOPMD
     /** true if server should support credential delegation requests. */
     private boolean allowDelegation = false;
     
-    /** true if request from localhost should not be authenticated. */
-    private boolean allowLocalhost = true;
-    
-    /** true if non-ssl for basic auth is allowed. */
-    private boolean allowUnsecure = true;
+    /** true if request from localhost should not be authenticated
+     * (secure default: false; localhost is authenticated unless opted in via web.xml). */
+    private boolean allowLocalhost = false;
+
+    /** true if non-ssl for basic auth is allowed
+     * (secure default: false; Basic over plain HTTP is disabled unless opted in via web.xml). */
+    private boolean allowUnsecure = false;
     
     /** true if all req. login module options set. */
     private boolean canUseKeyTab = false;
@@ -120,8 +122,8 @@ public class SpnegoFilterConfig { // NOPMD
         // specify logging level
         setLogLevel(config.getInitParameter(Constants.LOGGER_LEVEL));
         
-        // check if exists
-        assert loginConfExists(config.getInitParameter(Constants.LOGIN_CONF));
+        // enforce login.conf presence (fail-secure; not gated on assertions)
+        loginConfExists(config.getInitParameter(Constants.LOGIN_CONF));
         
         // specify krb5 conf as a System property
         if (!hasInitParameter(config, Constants.KRB5_CONF)) {
@@ -179,9 +181,10 @@ public class SpnegoFilterConfig { // NOPMD
     }
 
     private void doClientModule(final String moduleName) {
-        
-        assert moduleExists("client", moduleName);
-        
+
+        // enforce login module requirements (fail-secure; not gated on assertions)
+        moduleExists("client", moduleName);
+
         this.clientLoginModule = moduleName;
         
         // client must not have any options
@@ -228,9 +231,10 @@ public class SpnegoFilterConfig { // NOPMD
      * @param moduleName
      */
     private void doServerModule(final String moduleName) {
-        
-        assert moduleExists("server", moduleName);
-        
+
+        // enforce login module requirements (fail-secure; not gated on assertions)
+        moduleExists("server", moduleName);
+
         this.serverLoginModule = moduleName;
         
         // confirm that runtime loaded the login file

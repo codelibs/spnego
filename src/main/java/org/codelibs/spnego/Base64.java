@@ -20,94 +20,44 @@ package org.codelibs.spnego;
 
 /**
  * Encodes and decodes data to and from Base64 notation.
+ *
+ * <p>
+ * This class delegates to the JDK {@link java.util.Base64} implementation.
+ * Encoding uses the standard (RFC 4648) alphabet without line wrapping and
+ * decoding uses the strict basic decoder, which rejects malformed input by
+ * throwing {@link IllegalArgumentException}.
+ * </p>
  */
 public final class Base64 {
-
-    private static final String ALPHABET =
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     private Base64() {
         // default private
     }
-    
+
     /**
      * Base-64 encodes the supplied block of data.  Line wrapping is not
      * applied on output.
      *
      * @param bytes The block of data that is to be Base-64 encoded.
-     * @return A <code>String</code> containing the encoded data.
+     * @return A <code>String</code> containing the encoded data. An empty
+     *     input yields an empty <code>String</code>.
+     * @throws NullPointerException if <code>bytes</code> is <code>null</code>
      */
     public static String encode(final byte[] bytes) {
-        int length = bytes.length;
-        
-        if (length == 0) {
-            return "";
-        }
-        
-        final StringBuilder buffer =
-                new StringBuilder((int) Math.ceil(length / 3d) * 4);
-        final int remainder = length % 3;
-        length -= remainder;
-        int block;
-        int idx = 0;
-        while (idx < length) {
-            block = ((bytes[idx++] & 0xff) << 16) | ((bytes[idx++] & 0xff) << 8) 
-                | (bytes[idx++] & 0xff);
-            buffer.append(ALPHABET.charAt(block >>> 18));
-            buffer.append(ALPHABET.charAt((block >>> 12) & 0x3f));
-            buffer.append(ALPHABET.charAt((block >>> 6) & 0x3f));
-            buffer.append(ALPHABET.charAt(block & 0x3f));
-        }
-        if (remainder == 0) {
-            return buffer.toString();
-        }
-        if (remainder == 1) {
-            block = (bytes[idx] & 0xff) << 4;
-            buffer.append(ALPHABET.charAt(block >>> 6));
-            buffer.append(ALPHABET.charAt(block & 0x3f));
-            buffer.append("==");
-            return buffer.toString();
-        }
-        block = (((bytes[idx++] & 0xff) << 8) | ((bytes[idx]) & 0xff)) << 2;
-        buffer.append(ALPHABET.charAt(block >>> 12));
-        buffer.append(ALPHABET.charAt((block >>> 6) & 0x3f));
-        buffer.append(ALPHABET.charAt(block & 0x3f));
-        buffer.append('=');
-        return buffer.toString();
+        return java.util.Base64.getEncoder().encodeToString(bytes);
     }
 
     /**
      * Decodes the supplied Base-64 encoded string.
      *
      * @param string The Base-64 encoded string that is to be decoded.
-     * @return A <code>byte[]</code> containing the decoded data block.
+     * @return A <code>byte[]</code> containing the decoded data block. An empty
+     *     input yields a zero length array.
+     * @throws NullPointerException if <code>string</code> is <code>null</code>
+     * @throws IllegalArgumentException if <code>string</code> is not in valid
+     *     Base-64 notation
      */
     public static byte[] decode(final String string) {
-        final int length = string.length();
-        if (length == 0) {
-            return new byte[0];
-        }
-        
-        final int pad1 = (string.charAt(length - 1) == '=') ? 1 : 0;
-        final int pad = (string.charAt(length - 2) == '=') ? 2 : pad1;
-        final int size = length * 3 / 4 - pad;
-        final byte[] buffer = new byte[size];
-        int block;
-        int idx = 0;
-        int index = 0;
-        while (idx < length) {
-            block = (ALPHABET.indexOf(string.charAt(idx++)) & 0xff) << 18 
-                | (ALPHABET.indexOf(string.charAt(idx++)) & 0xff) << 12 
-                | (ALPHABET.indexOf(string.charAt(idx++)) & 0xff) << 6 
-                | (ALPHABET.indexOf(string.charAt(idx++)) & 0xff);
-            buffer[index++] = (byte) (block >>> 16);
-            if (index < size) {
-                buffer[index++] = (byte) ((block >>> 8) & 0xff);
-            }
-            if (index < size) {
-                buffer[index++] = (byte) (block & 0xff);
-            }
-        }
-        return buffer;
+        return java.util.Base64.getDecoder().decode(string);
     }
 }

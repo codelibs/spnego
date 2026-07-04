@@ -8,6 +8,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.PrivilegedActionException;
@@ -954,6 +955,67 @@ class SpnegoHttpURLConnectionTest {
         @DisplayName("custom HTTP methods can be set")
         void customMethods() {
             assertDoesNotThrow(() -> connection.setRequestMethod("CUSTOMMETHOD"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Same-origin cookie-scope tests")
+    class SameOriginTests {
+
+        private boolean sameOrigin(final String a, final String b) throws Exception {
+            final Method method = SpnegoHttpURLConnection.class
+                .getDeclaredMethod("sameOrigin", URL.class, URL.class);
+            method.setAccessible(true);
+            return (boolean) method.invoke(null, new URL(a), new URL(b));
+        }
+
+        @Test
+        @DisplayName("same scheme, host and port is same origin")
+        void sameHostSchemePortIsSameOrigin() throws Exception {
+            assertTrue(sameOrigin("http://example.com:8080/api",
+                "http://example.com:8080/other"));
+        }
+
+        @Test
+        @DisplayName("different host is not same origin")
+        void differentHostIsNotSameOrigin() throws Exception {
+            assertFalse(sameOrigin("http://example.com:8080/api",
+                "http://evil.example.com:8080/api"));
+        }
+
+        @Test
+        @DisplayName("different port is not same origin")
+        void differentPortIsNotSameOrigin() throws Exception {
+            assertFalse(sameOrigin("http://example.com:8080/api",
+                "http://example.com:9090/api"));
+        }
+
+        @Test
+        @DisplayName("different scheme is not same origin")
+        void differentSchemeIsNotSameOrigin() throws Exception {
+            assertFalse(sameOrigin("http://example.com/api",
+                "https://example.com/api"));
+        }
+
+        @Test
+        @DisplayName("host comparison is case-insensitive")
+        void hostComparisonIsCaseInsensitive() throws Exception {
+            assertTrue(sameOrigin("http://Example.COM/api",
+                "http://example.com/other"));
+        }
+
+        @Test
+        @DisplayName("default port is normalized for http")
+        void defaultPortNormalizedForHttp() throws Exception {
+            assertTrue(sameOrigin("http://example.com/api",
+                "http://example.com:80/api"));
+        }
+
+        @Test
+        @DisplayName("default port is normalized for https")
+        void defaultPortNormalizedForHttps() throws Exception {
+            assertTrue(sameOrigin("https://example.com/api",
+                "https://example.com:443/api"));
         }
     }
 }

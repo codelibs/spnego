@@ -199,7 +199,9 @@ class SpnegoAuthSchemeTest {
             String result = scheme.toString();
             
             assertTrue(result.contains("scheme=Negotiate"));
-            assertTrue(result.contains("token=dGVzdA=="));
+            // The raw token must NOT appear; it is redacted to avoid leaking credentials.
+            assertFalse(result.contains("dGVzdA=="));
+            assertTrue(result.contains("token=<redacted:8 chars>"));
             assertTrue(result.contains("basicScheme=false"));
             assertTrue(result.contains("negotiateScheme=true"));
             assertTrue(result.contains("ntlm=false"));
@@ -222,6 +224,20 @@ class SpnegoAuthSchemeTest {
             
             assertTrue(result.contains("token=null"));
             assertTrue(result.contains("ntlm=false"));
+        }
+
+        @Test
+        @DisplayName("toString does not expose the raw token (credential leak)")
+        void toStringDoesNotExposeToken() {
+            // For the Basic scheme the token is base64(user:password), i.e. the
+            // actual credentials. toString() is logged (SpnegoAuthenticator) and
+            // embedded in exception messages, so it must never leak the token.
+            final String token = "dXNlcjpwYXNzd29yZA=="; // base64("user:password")
+            SpnegoAuthScheme scheme = new SpnegoAuthScheme("Basic", token);
+            String result = scheme.toString();
+
+            assertFalse(result.contains(token),
+                    "toString() must not expose the raw token: " + result);
         }
     }
 }

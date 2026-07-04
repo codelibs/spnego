@@ -21,6 +21,7 @@ package org.codelibs.spnego;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.security.PrivilegedActionException;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -397,8 +398,7 @@ public final class SpnegoAuthenticator {
             return null;
         }
 
-        final String tokenData = new String(data);
-        LOGGER.fine(() -> "tokenData: " + tokenData);
+        final String tokenData = new String(data, StandardCharsets.UTF_8);
         final String[] basicData = tokenData.split(":", 2);
 
         // assert

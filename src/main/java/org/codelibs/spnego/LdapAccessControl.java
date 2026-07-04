@@ -31,6 +31,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.naming.Context;
@@ -368,38 +369,48 @@ public class LdapAccessControl implements UserAccessControl {
                 
                 int count = 0;
                 final LdapContext context = new InitialLdapContext(environment, null);
-                for (String filter : this.policy) {
-                    // perform AD lookup add to cache 
-                    final NamingEnumeration<SearchResult> results = 
-                            context.search(this.deecee
-                                    , String.format(filter, username, attribute)
-                                    , this.srchCntrls);
-                    
-                    final boolean found = results.hasMoreElements();
-                    results.close();
-                    
-                    // add to cache
-                    if (found) {
-                        count++;
-                        LOGGER.fine(() -> "add attribute to matchedList: " + attribute);
-                        this.matchedList.put(key, System.currentTimeMillis());
-                        if (!this.uniqueOnly) {
-                            break;                            
+                try {
+                    for (String filter : this.policy) {
+                        // perform AD lookup add to cache. escape user-supplied
+                        // values to prevent LDAP filter injection (RFC 4515).
+                        final NamingEnumeration<SearchResult> results =
+                                context.search(this.deecee
+                                        , String.format(filter
+                                                , escapeLdapFilterValue(username)
+                                                , escapeLdapFilterValue(attribute))
+                                        , this.srchCntrls);
+
+                        final boolean found;
+                        try {
+                            found = results.hasMoreElements();
+                        } finally {
+                            closeQuietly(results);
+                        }
+
+                        // add to cache
+                        if (found) {
+                            count++;
+                            LOGGER.fine(() -> "add attribute to matchedList: " + attribute);
+                            this.matchedList.put(key, System.currentTimeMillis());
+                            if (!this.uniqueOnly) {
+                                break;
+                            }
+                        }
+
+                        // check if we have a duplicate attribute
+                        if (count > 1 && this.uniqueOnly) {
+                            this.matchedList.remove(key);
+                            throw new IllegalArgumentException("Uniqueness property violated. "
+                                    + "Found duplicate role/attribute:" + attribute
+                                    + ". This MAY be caused by an improper policy definition"
+                                    + "; filter=" + filter
+                                    + "; policy=" + this.policy);
                         }
                     }
-                    
-                    // check if we have a duplicate attribute
-                    if (count > 1 && this.uniqueOnly) {
-                        this.matchedList.remove(key);
-                        throw new IllegalArgumentException("Uniqueness property violated. "
-                                + "Found duplicate role/attribute:" + attribute 
-                                + ". This MAY be caused by an improper policy definition" 
-                                + "; filter=" + filter 
-                                + "; policy=" + this.policy);                            
-                    }
+                } finally {
+                    closeQuietly(context);
                 }
-                context.close();
-                
+
                 if (0 == count) {
                     LOGGER.fine(() -> "add attribute to unMatchedList: " + attribute);
                     this.unMatchedList.put(key, System.currentTimeMillis());                    
@@ -769,32 +780,32 @@ public class LdapAccessControl implements UserAccessControl {
     }
     
     private boolean matchedExpired(final String key, final long now) {
-        final boolean matched = this.matchedList.containsKey(key);
-        boolean matchExpired = true;
-
+        // read the cache under the read lock to avoid racing with concurrent
+        // writes (HashMap resize) and a null unbox after a concurrent remove.
         this.readLock.lock();
         try {
-            // if has role, check if not expired
-            if (matched) {
-                matchExpired = now - this.matchedList.get(key) > expiration;
+            final Long timestamp = this.matchedList.get(key);
+            // treat a missing entry as expired (cache miss)
+            if (null == timestamp) {
+                return true;
             }
-            return !(matched && !matchExpired);
+            return now - timestamp > expiration;
         } finally {
             this.readLock.unlock();
         }
     }
-    
-    private boolean unMatchedExpired(final String key, final long now) {
-        final boolean unMatched = this.unMatchedList.containsKey(key);
-        boolean unMatchedExpired = true;
 
+    private boolean unMatchedExpired(final String key, final long now) {
+        // read the cache under the read lock to avoid racing with concurrent
+        // writes (HashMap resize) and a null unbox after a concurrent remove.
         this.readLock.lock();
         try {
-            // check if we know it's missing and we've checked recently
-            if (unMatched) {
-                unMatchedExpired = now - this.unMatchedList.get(key) > expiration;
+            final Long timestamp = this.unMatchedList.get(key);
+            // treat a missing entry as expired (we have not checked recently)
+            if (null == timestamp) {
+                return true;
             }
-            return !(unMatched && !unMatchedExpired);
+            return now - timestamp > expiration;
         } finally {
             this.readLock.unlock();
         }
@@ -869,36 +880,42 @@ public class LdapAccessControl implements UserAccessControl {
             return null;
         }
 
-        // perform AD lookup add to cache 
-        final LdapContext context = new InitialLdapContext(this.environment, null);
-        final NamingEnumeration<SearchResult> results = 
-                context.search(this.deecee
-                        , String.format(this.userInfoFilter, username)
-                        , this.srchCntrls);
-        
         boolean found = false;
         final Map<String, List<String>> labelInfo = new HashMap<>();
-        while (results.hasMoreElements()) {
-            found = true;
-            final SearchResult result = results.nextElement();
-            final Attributes attributes = result.getAttributes();
-            for (@SuppressWarnings("rawtypes")
-                NamingEnumeration iter = attributes.getAll(); iter.hasMore();) {
-                final Attribute attribute = (Attribute) iter.next();
-                final String label = attribute.getID();
-                final List<String> info = new ArrayList<>();
-                if (this.userInfoLabels.contains(label)) {
-                    labelInfo.put(label, info);
+        // perform AD lookup add to cache. escape the user-supplied username to
+        // prevent LDAP filter injection (RFC 4515).
+        final LdapContext context = new InitialLdapContext(this.environment, null);
+        try {
+            final NamingEnumeration<SearchResult> results =
+                    context.search(this.deecee
+                            , String.format(this.userInfoFilter, escapeLdapFilterValue(username))
+                            , this.srchCntrls);
+            try {
+                while (results.hasMoreElements()) {
+                    found = true;
+                    final SearchResult result = results.nextElement();
+                    final Attributes attributes = result.getAttributes();
                     for (@SuppressWarnings("rawtypes")
-                        NamingEnumeration enmr = attribute.getAll(); enmr.hasMore();) {
-                        info.add(enmr.next().toString());
+                        NamingEnumeration iter = attributes.getAll(); iter.hasMore();) {
+                        final Attribute attribute = (Attribute) iter.next();
+                        final String label = attribute.getID();
+                        final List<String> info = new ArrayList<>();
+                        if (this.userInfoLabels.contains(label)) {
+                            labelInfo.put(label, info);
+                            for (@SuppressWarnings("rawtypes")
+                                NamingEnumeration enmr = attribute.getAll(); enmr.hasMore();) {
+                                info.add(enmr.next().toString());
+                            }
+                        }
                     }
                 }
+            } finally {
+                closeQuietly(results);
             }
+        } finally {
+            closeQuietly(context);
         }
-        results.close();
-        context.close();
-        
+
         // add to cache
         final UserInfo userInfoObject;
         if (found) {
@@ -936,5 +953,96 @@ public class LdapAccessControl implements UserAccessControl {
         }
         
         return userInfoObject;
+    }
+
+    /**
+     * Escapes a value that will be interpolated into an LDAP search filter,
+     * per RFC 4515 section 3. This prevents LDAP filter/search injection when
+     * the value is derived from user input (e.g. username, role/attribute or
+     * resource). The input is scanned character-by-character so that the
+     * backslash is (implicitly) escaped first and already-escaped sequences
+     * are never escaped twice.
+     *
+     * <p>
+     * This method protects only filter <em>assertion-value</em> positions per
+     * RFC 4515; it does <strong>not</strong> perform RFC 4514 distinguished name
+     * (DN) escaping (of <code>, = + " &lt; &gt; ;</code>, a leading or trailing
+     * space, or a leading <code>#</code>). Consequently, any value interpolated
+     * into a DN component of a filter template (e.g. the group name in
+     * <code>CN=%2$s,OU=Groups,...</code>) is <strong>not</strong> protected
+     * against DN injection and MUST come from a trusted source. In this library
+     * such values are application-controlled role/attribute names, not end-user
+     * input.
+     * </p>
+     *
+     * <p>
+     * Package-private (rather than private) so that the escaping logic can be
+     * unit-tested directly from the same package without reflection.
+     * </p>
+     *
+     * @param value the raw value to escape; may be <code>null</code>
+     * @return the escaped value, or <code>null</code> if <code>value</code> was <code>null</code>
+     */
+    static String escapeLdapFilterValue(final String value) {
+        if (null == value) {
+            return null;
+        }
+        final StringBuilder buffer = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            final char ch = value.charAt(i);
+            switch (ch) {
+            case '\\':
+                buffer.append("\\5c");
+                break;
+            case '*':
+                buffer.append("\\2a");
+                break;
+            case '(':
+                buffer.append("\\28");
+                break;
+            case ')':
+                buffer.append("\\29");
+                break;
+            case '\u0000':
+                buffer.append("\\00");
+                break;
+            default:
+                buffer.append(ch);
+                break;
+            }
+        }
+        return buffer.toString();
+    }
+
+    /**
+     * Closes an LDAP context, logging (but not propagating) any close error so
+     * that it cannot mask an exception already in flight.
+     *
+     * @param context the context to close; may be <code>null</code>
+     */
+    private static void closeQuietly(final Context context) {
+        if (null != context) {
+            try {
+                context.close();
+            } catch (NamingException e) {
+                LOGGER.log(Level.FINE, e, () -> "Failed to close LDAP context");
+            }
+        }
+    }
+
+    /**
+     * Closes an LDAP search enumeration, logging (but not propagating) any
+     * close error so that it cannot mask an exception already in flight.
+     *
+     * @param results the enumeration to close; may be <code>null</code>
+     */
+    private static void closeQuietly(final NamingEnumeration<?> results) {
+        if (null != results) {
+            try {
+                results.close();
+            } catch (NamingException e) {
+                LOGGER.log(Level.FINE, e, () -> "Failed to close LDAP search results");
+            }
+        }
     }
 }

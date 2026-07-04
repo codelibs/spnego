@@ -331,7 +331,7 @@ public final class SpnegoProvider {
     public static CallbackHandler getUsernamePasswordHandler(
         final String username, final String password) {
 
-        LOGGER.fine(() -> "username=" + username + "; password=" + password.hashCode());
+        LOGGER.fine(() -> "username=" + username);
 
         return callback -> {
             for (int i = 0; i < callback.length; i++) {

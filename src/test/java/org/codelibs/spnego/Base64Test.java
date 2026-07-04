@@ -126,6 +126,35 @@ class Base64Test {
     }
 
     @Nested
+    @DisplayName("invalid input tests")
+    class InvalidInputTests {
+
+        @Test
+        @DisplayName("single character throws IllegalArgumentException")
+        void singleCharacter() {
+            assertThrows(IllegalArgumentException.class, () -> Base64.decode("A"));
+        }
+
+        @Test
+        @DisplayName("padding only throws IllegalArgumentException")
+        void paddingOnly() {
+            assertThrows(IllegalArgumentException.class, () -> Base64.decode("=="));
+        }
+
+        @Test
+        @DisplayName("length not a multiple of four throws IllegalArgumentException")
+        void notMultipleOfFour() {
+            assertThrows(IllegalArgumentException.class, () -> Base64.decode("AAAAA"));
+        }
+
+        @Test
+        @DisplayName("non-Base64 character throws IllegalArgumentException")
+        void nonBase64Character() {
+            assertThrows(IllegalArgumentException.class, () -> Base64.decode("@@@@"));
+        }
+    }
+
+    @Nested
     @DisplayName("round-trip tests")
     class RoundTripTests {
         
