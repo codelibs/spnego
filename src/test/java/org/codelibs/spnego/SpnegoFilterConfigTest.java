@@ -3,11 +3,22 @@ package org.codelibs.spnego;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.security.auth.login.AppConfigurationEntry;
+import javax.security.auth.login.Configuration;
+
 import org.codelibs.spnego.SpnegoHttpFilter.Constants;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -593,5 +604,151 @@ class SpnegoFilterConfigTest {
             assertNotNull(Constants.PROMPT_NTLM);
             assertNotNull(Constants.SERVER_MODULE);
         }
+    }
+
+    @Nested
+    @DisplayName("Secure default tests")
+    class SecureDefaultTests {
+
+        @Test
+        @DisplayName("localhost bypass is disabled by default (fail-secure)")
+        void localhostDisabledByDefault() throws Exception {
+            assertFalse(newDefaultConfig().isLocalhostAllowed());
+        }
+
+        @Test
+        @DisplayName("unsecure (non-ssl) basic auth is disabled by default (fail-secure)")
+        void unsecureDisabledByDefault() throws Exception {
+            assertFalse(newDefaultConfig().isUnsecureAllowed());
+        }
+
+        @Test
+        @DisplayName("basic auth is disabled by default")
+        void basicDisabledByDefault() throws Exception {
+            assertFalse(newDefaultConfig().isBasicAllowed());
+        }
+
+        @Test
+        @DisplayName("credential delegation is disabled by default")
+        void delegationDisabledByDefault() throws Exception {
+            assertFalse(newDefaultConfig().isDelegationAllowed());
+        }
+    }
+
+    @Nested
+    @DisplayName("Login module validation tests")
+    class LoginModuleValidationTests {
+
+        private static final String KRB5 = "com.sun.security.auth.module.Krb5LoginModule";
+
+        private Configuration savedConfiguration;
+
+        @BeforeEach
+        void saveConfiguration() {
+            try {
+                savedConfiguration = Configuration.getConfiguration();
+            } catch (final Exception | Error e) {
+                savedConfiguration = null;
+            }
+        }
+
+        @AfterEach
+        void restoreConfiguration() {
+            Configuration.setConfiguration(savedConfiguration);
+        }
+
+        @Test
+        @DisplayName("valid Krb5 REQUIRED module passes validation")
+        void validModulePasses() throws Throwable {
+            installConfiguration("spnego-server", entry(KRB5,
+                    AppConfigurationEntry.LoginModuleControlFlag.REQUIRED));
+
+            assertEquals(Boolean.TRUE, invokeModuleExists("server", "spnego-server"));
+        }
+
+        @Test
+        @DisplayName("non-Krb5 login module class is rejected")
+        void nonKrb5ModuleRejected() {
+            installConfiguration("spnego-server", entry("com.example.CustomLoginModule",
+                    AppConfigurationEntry.LoginModuleControlFlag.REQUIRED));
+
+            assertThrows(UnsupportedOperationException.class,
+                    () -> invokeModuleExists("server", "spnego-server"));
+        }
+
+        @Test
+        @DisplayName("control flag other than REQUIRED is rejected")
+        void nonRequiredControlFlagRejected() {
+            installConfiguration("spnego-server", entry(KRB5,
+                    AppConfigurationEntry.LoginModuleControlFlag.OPTIONAL));
+
+            assertThrows(UnsupportedOperationException.class,
+                    () -> invokeModuleExists("server", "spnego-server"));
+        }
+
+        @Test
+        @DisplayName("unknown module name is rejected")
+        void unknownModuleRejected() {
+            installConfiguration("spnego-server", entry(KRB5,
+                    AppConfigurationEntry.LoginModuleControlFlag.REQUIRED));
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> invokeModuleExists("server", "does-not-exist"));
+        }
+
+        @Test
+        @DisplayName("more than one login module class is rejected")
+        void multipleModulesRejected() {
+            final AppConfigurationEntry[] entries = new AppConfigurationEntry[] {
+                entry(KRB5, AppConfigurationEntry.LoginModuleControlFlag.REQUIRED),
+                entry(KRB5, AppConfigurationEntry.LoginModuleControlFlag.REQUIRED)
+            };
+            installConfiguration("spnego-server", entries);
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> invokeModuleExists("server", "spnego-server"));
+        }
+
+        private AppConfigurationEntry entry(final String moduleClass,
+                final AppConfigurationEntry.LoginModuleControlFlag flag) {
+            return new AppConfigurationEntry(moduleClass, flag, Collections.<String, Object>emptyMap());
+        }
+
+        private void installConfiguration(final String name, final AppConfigurationEntry... entries) {
+            final Map<String, AppConfigurationEntry[]> byName = new HashMap<>();
+            byName.put(name, entries);
+            Configuration.setConfiguration(new Configuration() {
+                @Override
+                public AppConfigurationEntry[] getAppConfigurationEntry(final String requested) {
+                    return byName.get(requested);
+                }
+
+                @Override
+                public void refresh() {
+                    // no-op
+                }
+            });
+        }
+
+        private Object invokeModuleExists(final String side, final String moduleName) throws Throwable {
+            final Constructor<SpnegoFilterConfig> ctor = SpnegoFilterConfig.class.getDeclaredConstructor();
+            ctor.setAccessible(true);
+            final SpnegoFilterConfig config = ctor.newInstance();
+
+            final Method method =
+                SpnegoFilterConfig.class.getDeclaredMethod("moduleExists", String.class, String.class);
+            method.setAccessible(true);
+            try {
+                return method.invoke(config, side, moduleName);
+            } catch (final InvocationTargetException e) {
+                throw e.getCause();
+            }
+        }
+    }
+
+    private SpnegoFilterConfig newDefaultConfig() throws Exception {
+        final Constructor<SpnegoFilterConfig> ctor = SpnegoFilterConfig.class.getDeclaredConstructor();
+        ctor.setAccessible(true);
+        return ctor.newInstance();
     }
 }

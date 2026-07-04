@@ -32,6 +32,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 /**
  * Unit tests for {@link SpnegoSOAPConnection} covering constructors,
@@ -648,14 +649,86 @@ class SpnegoSOAPConnectionTest {
             when(mockMimeHeaders.getHeader("SOAPAction")).thenReturn(null);
             doThrow(new IOException("Write failed"))
                 .when(mockRequest).writeTo(any(ByteArrayOutputStream.class));
-            
+
             assertThrows(SOAPException.class, () -> {
                 connection.call(mockRequest, testEndpoint);
             });
-            
+
             // Verify disconnect is still called
             SpnegoHttpURLConnection constructedConn = mockedConstruction.constructed().get(0);
             verify(constructedConn).disconnect();
+        }
+    }
+
+    /**
+     * Test that a SOAP response containing a DOCTYPE declaration with an
+     * external entity is rejected instead of being expanded (XXE protection).
+     * The secured DocumentBuilderFactory disallows DOCTYPE declarations, so
+     * parsing fails and the entity is never resolved.
+     */
+    @Test
+    void testCallRejectsXxeDoctypeInResponse() throws Exception {
+        String maliciousResponse = "<?xml version=\"1.0\"?>" +
+            "<!DOCTYPE soap:Envelope [" +
+            "<!ENTITY xxe SYSTEM \"file:///etc/passwd\">" +
+            "]>" +
+            "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\">" +
+            "<soap:Body><data>&xxe;</data></soap:Body>" +
+            "</soap:Envelope>";
+
+        try (MockedConstruction<SpnegoHttpURLConnection> mockedConstruction =
+                mockConstruction(SpnegoHttpURLConnection.class, (mock, context) -> {
+                    when(mock.getInputStream()).thenReturn(
+                        new ByteArrayInputStream(maliciousResponse.getBytes()));
+                })) {
+
+            SpnegoSOAPConnection connection = new SpnegoSOAPConnection(mockCredential);
+
+            when(mockRequest.getMimeHeaders()).thenReturn(mockMimeHeaders);
+            when(mockMimeHeaders.getHeader("Content-Type")).thenReturn(null);
+            when(mockMimeHeaders.getHeader("SOAPAction")).thenReturn(null);
+
+            SOAPException exception = assertThrows(SOAPException.class, () -> {
+                connection.call(mockRequest, testEndpoint);
+            });
+
+            // Parsing must fail on the DOCTYPE (SAXException), proving the
+            // external entity was never expanded.
+            assertTrue(exception.getCause() instanceof SAXException,
+                "Expected SAXException cause, but was: " + exception.getCause());
+
+            // Verify disconnect is still called
+            SpnegoHttpURLConnection constructedConn = mockedConstruction.constructed().get(0);
+            verify(constructedConn).disconnect();
+        }
+    }
+
+    /**
+     * Test that a well-formed SOAP response without a DOCTYPE is still parsed
+     * successfully after the XXE hardening, confirming the secured factory does
+     * not break legitimate responses.
+     */
+    @Test
+    void testCallAcceptsResponseWithoutDoctype() throws Exception {
+        String soapResponse = "<?xml version=\"1.0\"?>" +
+            "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\">" +
+            "<soap:Body><result>ok</result></soap:Body></soap:Envelope>";
+
+        try (MockedConstruction<SpnegoHttpURLConnection> mockedConstruction =
+                mockConstruction(SpnegoHttpURLConnection.class, (mock, context) -> {
+                    when(mock.getInputStream()).thenReturn(
+                        new ByteArrayInputStream(soapResponse.getBytes()));
+                })) {
+
+            SpnegoSOAPConnection connection = new SpnegoSOAPConnection(mockCredential);
+
+            when(mockRequest.getMimeHeaders()).thenReturn(mockMimeHeaders);
+            when(mockMimeHeaders.getHeader("Content-Type")).thenReturn(null);
+            when(mockMimeHeaders.getHeader("SOAPAction")).thenReturn(null);
+
+            SOAPMessage result = connection.call(mockRequest, testEndpoint);
+            assertNotNull(result);
+            assertNotNull(result.getSOAPBody());
         }
     }
 }

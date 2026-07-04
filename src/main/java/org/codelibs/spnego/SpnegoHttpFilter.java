@@ -275,9 +275,21 @@ public class SpnegoHttpFilter implements Filter {
         try {
             principal = this.authenticator.authenticate(httpRequest, spnegoResponse);
         } catch (GSSException gsse) {
-            LOGGER.severe(() -> "HTTP Authorization Header="
-                + httpRequest.getHeader(Constants.AUTHZ_HEADER));
+            // Do NOT log the Authorization header or token: it may contain
+            // credentials. Only log the scheme-agnostic failure reason.
+            LOGGER.severe(() -> "SPNEGO authentication failed: " + gsse.getMessage());
             throw new ServletException(gsse);
+        } catch (IllegalArgumentException iae) {
+            // A malformed (e.g. non-Base64) authorization token is fully
+            // controlled by an untrusted client. Fail closed by treating it as
+            // unauthenticated (401) instead of letting the unchecked exception
+            // propagate to the container and surface as an HTTP 500.
+            LOGGER.fine(() -> "Invalid authorization token: " + iae.getMessage());
+            if (!spnegoResponse.isStatusSet()) {
+                spnegoResponse.setHeader(Constants.AUTHN_HEADER, Constants.NEGOTIATE_HEADER);
+                spnegoResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED, true);
+            }
+            return;
         }
 
         // context/auth loop not yet complete

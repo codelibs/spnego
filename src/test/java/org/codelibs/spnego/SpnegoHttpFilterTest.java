@@ -223,9 +223,32 @@ class SpnegoHttpFilterTest {
                 .thenThrow(new GSSException(GSSException.FAILURE));
 
         // Act & Assert
-        ServletException exception = assertThrows(ServletException.class, 
+        ServletException exception = assertThrows(ServletException.class,
                 () -> filter.doFilter(httpRequest, httpResponse, filterChain));
         assertTrue(exception.getCause() instanceof GSSException);
+    }
+
+    @Test
+    void testDoFilterWithInvalidBase64Token() throws Exception {
+        // Arrange - a malformed Authorization token (e.g. "Negotiate A" or
+        // "Negotiate ==") makes Base64.decode throw IllegalArgumentException while
+        // authenticating. The filter must fail closed with a 401 rather than let
+        // the unchecked exception reach the container as a 500.
+        filter.authenticator = authenticator;
+        when(httpRequest.getContextPath()).thenReturn("/app");
+        when(httpRequest.getServletPath()).thenReturn("/secure");
+        when(authenticator.authenticate(any(HttpServletRequest.class),
+                any(SpnegoHttpServletResponse.class)))
+                .thenThrow(new IllegalArgumentException("Illegal base64 character"));
+
+        // Act - the unchecked exception must NOT propagate to the container
+        assertDoesNotThrow(() -> filter.doFilter(httpRequest, httpResponse, filterChain));
+
+        // Assert - responds 401 Unauthorized with a Negotiate challenge; no chain call
+        verify(httpResponse).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        verify(httpResponse).setHeader(SpnegoHttpFilter.Constants.AUTHN_HEADER,
+                SpnegoHttpFilter.Constants.NEGOTIATE_HEADER);
+        verify(filterChain, never()).doFilter(any(), any());
     }
 
     @Test

@@ -139,8 +139,7 @@ public class SpnegoSOAPConnection extends SOAPConnection {
 
     private final SpnegoHttpURLConnection conn;
     
-    private final DocumentBuilderFactory documentFactory = 
-        DocumentBuilderFactory.newInstance();
+    private final DocumentBuilderFactory documentFactory = createSecureDocumentFactory();
     
     private final MessageFactory messageFactory;
     
@@ -357,7 +356,30 @@ public class SpnegoSOAPConnection extends SOAPConnection {
         }
     }
 
-    private Document parse(final InputStream stream) 
+    /**
+     * Creates a {@link DocumentBuilderFactory} that is hardened against XML
+     * External Entity (XXE) attacks. DOCTYPE declarations are disallowed and
+     * external entity resolution is disabled so that a malicious or compromised
+     * SOAP server response cannot read local files or trigger SSRF.
+     *
+     * @return a securely configured DocumentBuilderFactory
+     */
+    private static DocumentBuilderFactory createSecureDocumentFactory() {
+        final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        try {
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        } catch (final ParserConfigurationException e) {
+            throw new IllegalStateException("Unable to configure secure XML parser.", e);
+        }
+        factory.setXIncludeAware(false);
+        factory.setExpandEntityReferences(false);
+        return factory;
+    }
+
+    private Document parse(final InputStream stream)
         throws SAXException, IOException, ParserConfigurationException {
         
         this.documentFactory.setNamespaceAware(true);

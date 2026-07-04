@@ -28,6 +28,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 
@@ -711,6 +712,74 @@ class LdapAccessControlTest {
             
             boolean result = ldapAccessControl.hasAccess("testuser", "admin-resource");
             assertTrue(result);
+        }
+    }
+
+    // Test LDAP filter injection escaping (RFC 4515)
+
+    @Test
+    void testEscapeLdapFilterValueWildcard() {
+        assertEquals("\\2a", LdapAccessControl.escapeLdapFilterValue("*"));
+    }
+
+    @Test
+    void testEscapeLdapFilterValueParentheses() {
+        assertEquals("a\\29\\28b", LdapAccessControl.escapeLdapFilterValue("a)(b"));
+    }
+
+    @Test
+    void testEscapeLdapFilterValueBackslash() {
+        assertEquals("a\\5cb", LdapAccessControl.escapeLdapFilterValue("a\\b"));
+    }
+
+    @Test
+    void testEscapeLdapFilterValueNul() {
+        assertEquals("a\\00b", LdapAccessControl.escapeLdapFilterValue("a\u0000b"));
+    }
+
+    @Test
+    void testEscapeLdapFilterValueNull() {
+        assertNull(LdapAccessControl.escapeLdapFilterValue(null));
+    }
+
+    @Test
+    void testEscapeLdapFilterValuePlain() {
+        assertEquals("plainUser", LdapAccessControl.escapeLdapFilterValue("plainUser"));
+    }
+
+    @Test
+    void testEscapeLdapFilterValueBackslashEscapedFirst() {
+        // The backslash must be handled first so the hex digits introduced for
+        // the other metacharacters are not themselves re-escaped.
+        assertEquals("\\5c\\2a\\28\\29", LdapAccessControl.escapeLdapFilterValue("\\*()"));
+    }
+
+    @Test
+    void testHasRoleEscapesWildcardInFilter() throws NamingException {
+        ldapAccessControl.init(testProps);
+
+        try (MockedConstruction<InitialLdapContext> mockedContext = mockConstruction(InitialLdapContext.class,
+                (mock, context) -> {
+                    NamingEnumeration<SearchResult> results = mock(NamingEnumeration.class);
+                    when(results.hasMoreElements()).thenReturn(false);
+                    when(mock.search(anyString(), anyString(), any(SearchControls.class))).thenReturn(results);
+                })) {
+
+            // The username contains an LDAP wildcard; it must be treated as a
+            // literal value rather than interpreted as a search wildcard.
+            ldapAccessControl.hasRole("*", "Admin");
+
+            InitialLdapContext constructed = mockedContext.constructed().get(0);
+            ArgumentCaptor<String> filterCaptor = ArgumentCaptor.forClass(String.class);
+            verify(constructed).search(anyString(), filterCaptor.capture(), any(SearchControls.class));
+
+            String actualFilter = filterCaptor.getValue();
+            // The raw wildcard must not survive into the filter expression.
+            assertFalse(actualFilter.contains("*"),
+                    "raw wildcard must not be injected into the filter: " + actualFilter);
+            // It must appear in its RFC 4515 escaped form instead.
+            assertTrue(actualFilter.contains("sAMAccountName=\\2a"),
+                    "username wildcard must be escaped to \\2a: " + actualFilter);
         }
     }
 }

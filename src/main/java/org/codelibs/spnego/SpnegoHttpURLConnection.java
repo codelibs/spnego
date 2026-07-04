@@ -738,26 +738,58 @@ public final class SpnegoHttpURLConnection {
             }
         } 
 
-        final List<String> cookies = 
+        final URL target;
+        if ('/' == location.charAt(0)) {
+            final String[] str = url.toString().split("/");
+            target = new URL(str[0] + "//" + str[2] + location);
+        } else {
+            target = new URL(location);
+        }
+
+        final List<String> cookies =
             this.conn.getHeaderFields().get("Set-Cookie");
 
         this.conn.disconnect();
         this.connected = false;
 
-        if (null != cookies) {
-            this.requestProperties.remove("Cookie");
-            for (String cookie : cookies) {
-                this.addRequestProperty("Cookie", cookie);
+        if (sameOrigin(url, target)) {
+            // Same origin: preserve existing behavior. Replace the Cookie header
+            // only when the server returned new Set-Cookie values, otherwise keep
+            // the cookie(s) carried over from the previous hop.
+            if (null != cookies) {
+                this.requestProperties.remove("Cookie");
+                for (String cookie : cookies) {
+                    this.addRequestProperty("Cookie", cookie);
+                }
             }
+        } else {
+            // Cross origin: never forward cookies (neither the newly set values
+            // nor any carried over from a previous hop) to a different host.
+            this.requestProperties.remove("Cookie");
         }
 
-        if ('/' == location.charAt(0)) {
-            final String[] str = url.toString().split("/");
-            final String newLocation = str[0] + "//" + str[2] + location;
-            return this.connect(new URL(newLocation), dooutput);
-        } else {
-            return this.connect(new URL(location), dooutput);
+        return this.connect(target, dooutput);
+    }
+
+    /**
+     * Determines whether two URLs share the same origin, i.e. the same scheme,
+     * host, and effective port. A port of -1 (not explicitly specified) is
+     * normalized to the scheme's default port before comparison.
+     *
+     * @param a the first URL
+     * @param b the second URL
+     * @return true if both URLs have the same scheme, host, and effective port
+     */
+    private static boolean sameOrigin(final URL a, final URL b) {
+        if (!a.getProtocol().equalsIgnoreCase(b.getProtocol())) {
+            return false;
         }
+        if (!a.getHost().equalsIgnoreCase(b.getHost())) {
+            return false;
+        }
+        final int portA = -1 == a.getPort() ? a.getDefaultPort() : a.getPort();
+        final int portB = -1 == b.getPort() ? b.getDefaultPort() : b.getPort();
+        return portA == portB;
     }
     
     /**
