@@ -279,12 +279,14 @@ public class SpnegoHttpFilter implements Filter {
             // credentials. Only log the scheme-agnostic failure reason.
             LOGGER.severe(() -> "SPNEGO authentication failed: " + gsse.getMessage());
             throw new ServletException(gsse);
-        } catch (IllegalArgumentException iae) {
-            // A malformed (e.g. non-Base64) authorization token is fully
-            // controlled by an untrusted client. Fail closed by treating it as
-            // unauthenticated (401) instead of letting the unchecked exception
-            // propagate to the container and surface as an HTTP 500.
-            LOGGER.fine(() -> "Invalid authorization token: " + iae.getMessage());
+        } catch (IllegalArgumentException | UnsupportedOperationException ex) {
+            // Client-controlled input that we must reject: a malformed (e.g.
+            // non-Base64) authorization token (IllegalArgumentException), an
+            // unsupported authorization scheme, or Basic over plain HTTP when
+            // disallowed (UnsupportedOperationException). Fail closed by treating
+            // it as unauthenticated (401) instead of letting the unchecked
+            // exception propagate to the container and surface as an HTTP 500.
+            LOGGER.fine(() -> "Invalid authorization token: " + ex.getMessage());
             if (!spnegoResponse.isStatusSet()) {
                 spnegoResponse.setHeader(Constants.AUTHN_HEADER, Constants.NEGOTIATE_HEADER);
                 spnegoResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED, true);

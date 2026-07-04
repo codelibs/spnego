@@ -115,7 +115,21 @@ final class SpnegoAuthScheme {
 
     @Override
     public String toString() {
-        return "SpnegoAuthScheme [scheme=" + scheme + ", token=" + token + ", basicScheme=" + basicScheme + ", negotiateScheme="
-                + negotiateScheme + ", ntlm=" + ntlm + "]";
+        return "SpnegoAuthScheme [scheme=" + scheme + ", token=" + redactToken(token) + ", basicScheme=" + basicScheme
+                + ", negotiateScheme=" + negotiateScheme + ", ntlm=" + ntlm + "]";
+    }
+
+    /**
+     * Returns a non-sensitive placeholder for the token so that credentials are
+     * never leaked into logs or exception messages. For the "Basic" scheme the
+     * token is base64(user:password), i.e. the actual password, so the raw value
+     * must not be interpolated into toString(). The length is preserved for
+     * diagnostic value only.
+     *
+     * @param authToken the raw token; may be <code>null</code>
+     * @return "null" when the token is null, otherwise a redacted placeholder
+     */
+    private static String redactToken(final String authToken) {
+        return (null == authToken) ? "null" : "<redacted:" + authToken.length() + " chars>";
     }
 }

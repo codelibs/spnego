@@ -782,4 +782,46 @@ class LdapAccessControlTest {
                     "username wildcard must be escaped to \\2a: " + actualFilter);
         }
     }
+
+    @Test
+    void testGetUserInfoEscapesWildcardInFilter() throws NamingException {
+        Properties props = createTestProperties();
+        props.setProperty("spnego.authz.user.info", "mail,department,displayName");
+        props.setProperty("spnego.authz.ldap.user.filter", "(&(sAMAccountName=%1$s))");
+        ldapAccessControl.init(props);
+
+        try (MockedConstruction<InitialLdapContext> mockedContext = mockConstruction(InitialLdapContext.class,
+                (mock, context) -> {
+                    // Return a single result with no matching attributes so the
+                    // user-info lookup completes without throwing; we only care
+                    // about the filter that was sent to the directory.
+                    NamingEnumeration<SearchResult> results = mock(NamingEnumeration.class);
+                    SearchResult searchResult = mock(SearchResult.class);
+                    Attributes attributes = mock(Attributes.class);
+                    NamingEnumeration attrEnum = mock(NamingEnumeration.class);
+                    when(results.hasMoreElements()).thenReturn(true, false);
+                    when(results.nextElement()).thenReturn(searchResult);
+                    when(searchResult.getAttributes()).thenReturn(attributes);
+                    when(attributes.getAll()).thenReturn(attrEnum);
+                    when(attrEnum.hasMore()).thenReturn(false);
+                    when(mock.search(anyString(), anyString(), any(SearchControls.class))).thenReturn(results);
+                })) {
+
+            // The username contains an LDAP wildcard; the getUserInfo/cacheUserInfo
+            // sink must treat it as a literal value rather than a search wildcard.
+            ldapAccessControl.getUserInfo("*");
+
+            InitialLdapContext constructed = mockedContext.constructed().get(0);
+            ArgumentCaptor<String> filterCaptor = ArgumentCaptor.forClass(String.class);
+            verify(constructed).search(anyString(), filterCaptor.capture(), any(SearchControls.class));
+
+            String actualFilter = filterCaptor.getValue();
+            // The raw wildcard must not survive into the user-info filter expression.
+            assertFalse(actualFilter.contains("*"),
+                    "raw wildcard must not be injected into the user-info filter: " + actualFilter);
+            // It must appear in its RFC 4515 escaped form instead.
+            assertTrue(actualFilter.contains("sAMAccountName=\\2a"),
+                    "username wildcard must be escaped to \\2a: " + actualFilter);
+        }
+    }
 }

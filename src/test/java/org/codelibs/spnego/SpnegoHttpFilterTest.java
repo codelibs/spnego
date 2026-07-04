@@ -252,6 +252,29 @@ class SpnegoHttpFilterTest {
     }
 
     @Test
+    void testDoFilterWithUnsupportedOperation() throws Exception {
+        // Arrange - client-controlled input can trigger UnsupportedOperationException:
+        // Basic over plain HTTP when disallowed (allowUnsecure=false) or an unsupported
+        // authorization scheme. The filter must fail closed with a 401 rather than let
+        // the unchecked exception reach the container as a 500.
+        filter.authenticator = authenticator;
+        when(httpRequest.getContextPath()).thenReturn("/app");
+        when(httpRequest.getServletPath()).thenReturn("/secure");
+        when(authenticator.authenticate(any(HttpServletRequest.class),
+                any(SpnegoHttpServletResponse.class)))
+                .thenThrow(new UnsupportedOperationException("Basic Auth not allowed or SSL required."));
+
+        // Act - the unchecked exception must NOT propagate to the container
+        assertDoesNotThrow(() -> filter.doFilter(httpRequest, httpResponse, filterChain));
+
+        // Assert - responds 401 Unauthorized with a Negotiate challenge; no chain call
+        verify(httpResponse).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        verify(httpResponse).setHeader(SpnegoHttpFilter.Constants.AUTHN_HEADER,
+                SpnegoHttpFilter.Constants.NEGOTIATE_HEADER);
+        verify(filterChain, never()).doFilter(any(), any());
+    }
+
+    @Test
     void testDoFilterWithStatusSet() throws Exception {
         // Arrange
         filter.authenticator = authenticator;

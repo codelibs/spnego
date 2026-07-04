@@ -964,6 +964,18 @@ public class LdapAccessControl implements UserAccessControl {
      * are never escaped twice.
      *
      * <p>
+     * This method protects only filter <em>assertion-value</em> positions per
+     * RFC 4515; it does <strong>not</strong> perform RFC 4514 distinguished name
+     * (DN) escaping (of <code>, = + " &lt; &gt; ;</code>, a leading or trailing
+     * space, or a leading <code>#</code>). Consequently, any value interpolated
+     * into a DN component of a filter template (e.g. the group name in
+     * <code>CN=%2$s,OU=Groups,...</code>) is <strong>not</strong> protected
+     * against DN injection and MUST come from a trusted source. In this library
+     * such values are application-controlled role/attribute names, not end-user
+     * input.
+     * </p>
+     *
+     * <p>
      * Package-private (rather than private) so that the escaping logic can be
      * unit-tested directly from the same package without reflection.
      * </p>

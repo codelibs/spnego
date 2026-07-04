@@ -122,8 +122,8 @@ public class SpnegoFilterConfig { // NOPMD
         // specify logging level
         setLogLevel(config.getInitParameter(Constants.LOGGER_LEVEL));
         
-        // check if exists
-        assert loginConfExists(config.getInitParameter(Constants.LOGIN_CONF));
+        // enforce login.conf presence (fail-secure; not gated on assertions)
+        loginConfExists(config.getInitParameter(Constants.LOGIN_CONF));
         
         // specify krb5 conf as a System property
         if (!hasInitParameter(config, Constants.KRB5_CONF)) {
