@@ -72,6 +72,9 @@ public class SpnegoFilterConfig { // NOPMD
     private static final String MISSING_PROPERTY = 
         "Servlet Filter init param(s) in web.xml missing: ";
     
+    /** scheme of a login.conf location expressed as a URL instead of a path. */
+    private static final String FILE_URI_SCHEME = "file:";
+    
     private static SpnegoFilterConfig instance = null;
 
     /** true if Basic auth should be offered. */
@@ -387,19 +390,53 @@ public class SpnegoFilterConfig { // NOPMD
     }
     
     private boolean loginConfExists(final String loginconf) 
-        throws FileNotFoundException, URISyntaxException {
+        throws FileNotFoundException {
 
         // confirm login.conf file exists
         if (null == loginconf || loginconf.isEmpty()) {
             throw new FileNotFoundException("Must provide a login.conf file.");
         } else {
-            final File file = new File(new URI(loginconf));
+            final File file = toLoginConfFile(loginconf);
             if (!file.exists()) {
                 throw new FileNotFoundException(loginconf);
             }
         }
 
         return true;
+    }
+
+    /**
+     * Resolves the configured login.conf location to a file.
+     * 
+     * <p>
+     * The same value is handed to the <code>java.security.auth.login.config</code> system 
+     * property, which JAAS reads as either a URL or a file system path, so both forms are 
+     * accepted here. A plain path is the common case: it is what a servlet container resolves 
+     * a packaged resource to, and on Windows it can hold characters that are not legal in a 
+     * URI. Only a value that starts with the <code>file:</code> scheme is parsed as a URL, and 
+     * even then a value that does not survive parsing falls back to being treated as a path.
+     * </p>
+     * 
+     * @param loginconf location of the login.conf file (not null and not empty)
+     * @return the file the location points at
+     */
+    private static File toLoginConfFile(final String loginconf) {
+
+        if (loginconf.regionMatches(true, 0, FILE_URI_SCHEME, 0, FILE_URI_SCHEME.length())) {
+            try {
+                final URI uri = new URI(loginconf);
+                if (!uri.isOpaque() && null != uri.getPath()) {
+                    return new File(uri);
+                }
+                LOGGER.fine(() -> "login.conf is not a hierarchical file URI"
+                        + "; treating it as a path: " + loginconf);
+            } catch (URISyntaxException e) {
+                LOGGER.fine(() -> "login.conf is not a valid file URI"
+                        + "; treating it as a path: " + loginconf);
+            }
+        }
+
+        return new File(loginconf);
     }
     
     private boolean moduleExists(final String side, final String moduleName) {
