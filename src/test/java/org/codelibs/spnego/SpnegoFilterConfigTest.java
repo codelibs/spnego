@@ -3,6 +3,8 @@ package org.codelibs.spnego;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -740,6 +743,85 @@ class SpnegoFilterConfigTest {
             method.setAccessible(true);
             try {
                 return method.invoke(config, side, moduleName);
+            } catch (final InvocationTargetException e) {
+                throw e.getCause();
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("login.conf location tests")
+    class LoginConfLocationTests {
+
+        @TempDir
+        private File tempDir;
+
+        @Test
+        @DisplayName("plain absolute path is accepted")
+        void plainAbsolutePath() throws Throwable {
+            final File loginConf = writeLoginConf("auth_login.conf");
+
+            assertEquals(Boolean.TRUE, loginConfExists(loginConf.getAbsolutePath()));
+        }
+
+        @Test
+        @DisplayName("plain absolute path containing spaces is accepted")
+        void plainAbsolutePathWithSpaces() throws Throwable {
+            final File dir = new File(tempDir, "my fess");
+            assertTrue(dir.mkdir());
+            final File loginConf = new File(dir, "auth_login.conf");
+            assertTrue(loginConf.createNewFile());
+
+            assertEquals(Boolean.TRUE, loginConfExists(loginConf.getAbsolutePath()));
+        }
+
+        @Test
+        @DisplayName("file URI is accepted")
+        void fileUri() throws Throwable {
+            final File loginConf = writeLoginConf("auth_login.conf");
+
+            assertEquals(Boolean.TRUE, loginConfExists(loginConf.toURI().toString()));
+        }
+
+        @Test
+        @DisplayName("missing file reports FileNotFoundException")
+        void missingFile() {
+            final String path = new File(tempDir, "absent.conf").getAbsolutePath();
+
+            assertThrows(FileNotFoundException.class, () -> loginConfExists(path));
+        }
+
+        @Test
+        @DisplayName("opaque file URI reports FileNotFoundException instead of failing unchecked")
+        void opaqueFileUri() {
+            assertThrows(FileNotFoundException.class, () -> loginConfExists("file:absent.conf"));
+        }
+
+        @Test
+        @DisplayName("null location reports FileNotFoundException")
+        void nullLocation() {
+            assertThrows(FileNotFoundException.class, () -> loginConfExists(null));
+        }
+
+        @Test
+        @DisplayName("empty location reports FileNotFoundException")
+        void emptyLocation() {
+            assertThrows(FileNotFoundException.class, () -> loginConfExists(""));
+        }
+
+        private File writeLoginConf(final String name) throws Exception {
+            final File loginConf = new File(tempDir, name);
+            assertTrue(loginConf.createNewFile());
+            return loginConf;
+        }
+
+        private Object loginConfExists(final String loginconf) throws Throwable {
+            final SpnegoFilterConfig config = newDefaultConfig();
+
+            final Method method = SpnegoFilterConfig.class.getDeclaredMethod("loginConfExists", String.class);
+            method.setAccessible(true);
+            try {
+                return method.invoke(config, loginconf);
             } catch (final InvocationTargetException e) {
                 throw e.getCause();
             }
