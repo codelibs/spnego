@@ -4,10 +4,14 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.security.PrivilegedActionException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import javax.security.auth.callback.CallbackHandler;
+import javax.security.auth.login.AppConfigurationEntry;
+import javax.security.auth.login.Configuration;
 import javax.security.auth.login.LoginContext;
 import javax.security.auth.login.LoginException;
 import javax.security.auth.Subject;
@@ -18,6 +22,8 @@ import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
 import org.ietf.jgss.GSSManager;
 import org.ietf.jgss.GSSName;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -920,6 +926,209 @@ class SpnegoAuthenticatorTest {
             assertThrows(IllegalArgumentException.class, () -> {
                 new SpnegoAuthenticator("custom-module", mockConfig);
             });
+        }
+    }
+
+    @Nested
+    @DisplayName("Logout on failed construction tests")
+    class LogoutOnFailedConstructionTests {
+
+        /**
+         * JAAS configuration active before this test installed its own. The JAAS
+         * Configuration is a JVM-wide cached singleton shared by every test in this
+         * JVM, so it has to be put back afterwards.
+         */
+        private Configuration previousConfiguration;
+
+        /** Flag set when the previous configuration could not be read. */
+        private boolean previousConfigurationUnavailable;
+
+        @BeforeEach
+        void installRecordingLoginModule() {
+            try {
+                this.previousConfiguration = Configuration.getConfiguration();
+            } catch (final SecurityException e) {
+                // No login configuration is installed in this JVM yet.
+                this.previousConfiguration = null;
+                this.previousConfigurationUnavailable = true;
+            }
+            Configuration.setConfiguration(new Configuration() {
+                @Override
+                public AppConfigurationEntry[] getAppConfigurationEntry(final String name) {
+                    return new AppConfigurationEntry[] { new AppConfigurationEntry(RecordingLoginModule.class.getName(),
+                            AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, Collections.<String, Object> emptyMap()) };
+                }
+            });
+            RecordingLoginModule.reset();
+        }
+
+        @AfterEach
+        void restorePreviousLoginModule() {
+            // Passing null forces the next getConfiguration() to reload the default.
+            Configuration.setConfiguration(this.previousConfigurationUnavailable ? null : this.previousConfiguration);
+            RecordingLoginModule.reset();
+        }
+
+        @Test
+        @DisplayName("filter config constructor logs the JAAS context out when the server credential is unusable")
+        void filterConfigConstructorLogsOutWhenServerCredentialFails() {
+            final PrivilegedActionException failure = new PrivilegedActionException(new GSSException(GSSException.NO_CRED));
+
+            try (MockedStatic<SpnegoProvider> mockedProvider = mockStatic(SpnegoProvider.class)) {
+                mockedProvider.when(() -> SpnegoProvider.getServerCredential(any(Subject.class))).thenThrow(failure);
+
+                when(mockConfig.isBasicAllowed()).thenReturn(false);
+                when(mockConfig.isUnsecureAllowed()).thenReturn(false);
+                when(mockConfig.getClientLoginModule()).thenReturn("client-module");
+                when(mockConfig.isLocalhostAllowed()).thenReturn(false);
+                when(mockConfig.downgradeNtlm()).thenReturn(false);
+                when(mockConfig.isDelegationAllowed()).thenReturn(false);
+                when(mockConfig.useKeyTab()).thenReturn(true);
+                when(mockConfig.getServerLoginModule()).thenReturn(RecordingLoginModule.MODULE_NAME);
+
+                final PrivilegedActionException thrown =
+                        assertThrows(PrivilegedActionException.class, () -> new SpnegoAuthenticator(mockConfig));
+
+                assertSame(failure, thrown, "the original failure must not be replaced by the cleanup");
+            }
+
+            assertEquals(1, RecordingLoginModule.getLoginCount(), "the server should have logged in before failing");
+            assertEquals(1, RecordingLoginModule.getLogoutCount(),
+                    "the server subject must be logged out when construction fails, since dispose() can never run");
+            assertTrue(RecordingLoginModule.getLastSubject().getPrincipals().isEmpty(),
+                    "the server subject must not keep its principals after a failed construction");
+        }
+
+        @Test
+        @DisplayName("login module constructor logs the JAAS context out when the server principal is malformed")
+        void loginModuleConstructorLogsOutWhenServerPrincipalFails() throws Exception {
+            final GSSName malformedName = mock(GSSName.class);
+            when(malformedName.toString()).thenReturn("");
+
+            final GSSCredential unusableCredential = mock(GSSCredential.class);
+
+            try (MockedStatic<SpnegoProvider> mockedProvider = mockStatic(SpnegoProvider.class)) {
+                mockedProvider.when(() -> SpnegoProvider.getServerCredential(any(Subject.class))).thenReturn(unusableCredential);
+
+                when(unusableCredential.getName()).thenReturn(malformedName);
+                when(mockConfig.isBasicAllowed()).thenReturn(false);
+                when(mockConfig.isUnsecureAllowed()).thenReturn(false);
+                when(mockConfig.getClientLoginModule()).thenReturn("client-module");
+                when(mockConfig.isLocalhostAllowed()).thenReturn(false);
+                when(mockConfig.downgradeNtlm()).thenReturn(false);
+                when(mockConfig.isDelegationAllowed()).thenReturn(false);
+                when(mockConfig.getPreauthUsername()).thenReturn(null);
+                when(mockConfig.useKeyTab()).thenReturn(true);
+
+                // An empty name makes the KerberosPrincipal constructor throw, which
+                // is the second way construction can fail after a successful login().
+                assertThrows(IllegalArgumentException.class,
+                        () -> new SpnegoAuthenticator(RecordingLoginModule.MODULE_NAME, mockConfig));
+            }
+
+            assertEquals(1, RecordingLoginModule.getLoginCount(), "the server should have logged in before failing");
+            assertEquals(1, RecordingLoginModule.getLogoutCount(),
+                    "the server subject must be logged out when construction fails, since dispose() can never run");
+            assertTrue(RecordingLoginModule.getLastSubject().getPrincipals().isEmpty(),
+                    "the server subject must not keep its principals after a failed construction");
+        }
+
+        @Test
+        @DisplayName("a failing logout is reported as suppressed and does not replace the real cause")
+        void failingLogoutDoesNotMaskTheOriginalFailure() {
+            final PrivilegedActionException failure = new PrivilegedActionException(new GSSException(GSSException.NO_CRED));
+            RecordingLoginModule.failOnLogout();
+
+            try (MockedStatic<SpnegoProvider> mockedProvider = mockStatic(SpnegoProvider.class)) {
+                mockedProvider.when(() -> SpnegoProvider.getServerCredential(any(Subject.class))).thenThrow(failure);
+
+                when(mockConfig.isBasicAllowed()).thenReturn(false);
+                when(mockConfig.isUnsecureAllowed()).thenReturn(false);
+                when(mockConfig.getClientLoginModule()).thenReturn("client-module");
+                when(mockConfig.isLocalhostAllowed()).thenReturn(false);
+                when(mockConfig.downgradeNtlm()).thenReturn(false);
+                when(mockConfig.isDelegationAllowed()).thenReturn(false);
+                when(mockConfig.useKeyTab()).thenReturn(true);
+                when(mockConfig.getServerLoginModule()).thenReturn(RecordingLoginModule.MODULE_NAME);
+
+                final PrivilegedActionException thrown =
+                        assertThrows(PrivilegedActionException.class, () -> new SpnegoAuthenticator(mockConfig));
+
+                assertSame(failure, thrown, "a failed logout must not replace the real cause");
+                assertEquals(1, thrown.getSuppressed().length, "the failed logout must be reported as suppressed");
+                assertInstanceOf(LoginException.class, thrown.getSuppressed()[0],
+                        "the suppressed failure must be the LoginException the logout threw");
+            }
+
+            assertEquals(1, RecordingLoginModule.getLoginCount(), "the server should have logged in before failing");
+            assertEquals(1, RecordingLoginModule.getLogoutCount(), "logout must still have been attempted");
+        }
+
+        @Test
+        @DisplayName("an unbound acceptor credential is reported as a GSSException and still logs out")
+        void unboundAcceptorCredentialIsReportedAndLogsOut() throws Exception {
+            // A Krb5LoginModule configured with "principal = *" acquires an acceptor
+            // credential that is not bound to a name, so getName() returns null.
+            final GSSCredential unboundCredential = mock(GSSCredential.class);
+
+            try (MockedStatic<SpnegoProvider> mockedProvider = mockStatic(SpnegoProvider.class)) {
+                mockedProvider.when(() -> SpnegoProvider.getServerCredential(any(Subject.class))).thenReturn(unboundCredential);
+
+                when(unboundCredential.getName()).thenReturn(null);
+                when(mockConfig.isBasicAllowed()).thenReturn(false);
+                when(mockConfig.isUnsecureAllowed()).thenReturn(false);
+                when(mockConfig.getClientLoginModule()).thenReturn("client-module");
+                when(mockConfig.isLocalhostAllowed()).thenReturn(false);
+                when(mockConfig.downgradeNtlm()).thenReturn(false);
+                when(mockConfig.isDelegationAllowed()).thenReturn(false);
+                when(mockConfig.getPreauthUsername()).thenReturn(null);
+                when(mockConfig.useKeyTab()).thenReturn(true);
+
+                final GSSException thrown = assertThrows(GSSException.class,
+                        () -> new SpnegoAuthenticator(RecordingLoginModule.MODULE_NAME, mockConfig),
+                        "a nameless acceptor credential must be reported, not dereferenced into a NullPointerException");
+
+                assertTrue(thrown.getMessage().contains("principal = *"),
+                        "the failure must name the configuration that causes it, was: " + thrown.getMessage());
+            }
+
+            assertEquals(1, RecordingLoginModule.getLoginCount(), "the server should have logged in before failing");
+            assertEquals(1, RecordingLoginModule.getLogoutCount(),
+                    "the server subject must be logged out when construction fails, since dispose() can never run");
+            assertTrue(RecordingLoginModule.getLastSubject().getPrincipals().isEmpty(),
+                    "the server subject must not keep its principals after a failed construction");
+        }
+
+        @Test
+        @DisplayName("a successful construction leaves the JAAS context logged in")
+        void successfulConstructionDoesNotLogOut() throws Exception {
+            final GSSName serverName = mock(GSSName.class);
+            when(serverName.toString()).thenReturn("HTTP/server@EXAMPLE.COM");
+
+            final GSSCredential serverCredential = mock(GSSCredential.class);
+
+            try (MockedStatic<SpnegoProvider> mockedProvider = mockStatic(SpnegoProvider.class)) {
+                mockedProvider.when(() -> SpnegoProvider.getServerCredential(any(Subject.class))).thenReturn(serverCredential);
+
+                when(serverCredential.getName()).thenReturn(serverName);
+                when(mockConfig.isBasicAllowed()).thenReturn(false);
+                when(mockConfig.isUnsecureAllowed()).thenReturn(false);
+                when(mockConfig.getClientLoginModule()).thenReturn("client-module");
+                when(mockConfig.isLocalhostAllowed()).thenReturn(false);
+                when(mockConfig.downgradeNtlm()).thenReturn(false);
+                when(mockConfig.isDelegationAllowed()).thenReturn(false);
+                when(mockConfig.getPreauthUsername()).thenReturn(null);
+                when(mockConfig.useKeyTab()).thenReturn(true);
+
+                assertNotNull(new SpnegoAuthenticator(RecordingLoginModule.MODULE_NAME, mockConfig),
+                        "construction must succeed when the server credential is usable");
+            }
+
+            assertEquals(1, RecordingLoginModule.getLoginCount(), "the server should have logged in");
+            assertEquals(0, RecordingLoginModule.getLogoutCount(),
+                    "a successful construction must leave the JAAS context logged in for dispose() to close");
+            assertFalse(RecordingLoginModule.getLastSubject().getPrincipals().isEmpty(),
+                    "the server subject must keep its principals after a successful construction");
         }
     }
 

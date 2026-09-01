@@ -41,6 +41,7 @@ import org.ietf.jgss.GSSContext;
 import org.ietf.jgss.GSSCredential;
 import org.ietf.jgss.GSSException;
 import org.ietf.jgss.GSSManager;
+import org.ietf.jgss.GSSName;
 
 import jakarta.servlet.FilterConfig;
 import jakarta.servlet.ServletContext;
@@ -161,12 +162,29 @@ public final class SpnegoAuthenticator {
         LOGGER.fine(() -> "logging in context: " + loginContext);
         this.loginContext.login();
 
-        this.serverCredentials = SpnegoProvider.getServerCredential(
-                this.loginContext.getSubject());
+        // login() succeeded, so the Subject now holds the server's Kerberos keys.
+        // Anything that fails below aborts construction, which means dispose() can
+        // never be called and the Subject would stay logged in for good. The trailing
+        // log call is inside the guard too: Logger propagates whatever the message
+        // supplier throws, so it belongs on the same side of the try as the rest.
+        try {
+            this.serverCredentials = SpnegoProvider.getServerCredential(
+                    this.loginContext.getSubject());
 
-        this.serverPrincipal = new KerberosPrincipal(
-                this.serverCredentials.getName().toString());
-        LOGGER.fine(() -> "serverCredentials: " + serverCredentials + ", serverPrincipal: " + serverPrincipal);
+            final GSSName serverName = this.serverCredentials.getName();
+            if (null == serverName) {
+                // GSSException only renders the detail message when the minor code is non-zero.
+                throw new GSSException(GSSException.DEFECTIVE_CREDENTIAL, 1
+                        , "the server login module produced an unbound acceptor credential with no name;"
+                        + " a named server principal is required, so do not configure principal = *");
+            }
+            this.serverPrincipal = new KerberosPrincipal(serverName.toString());
+
+            LOGGER.fine(() -> "serverCredentials: " + serverCredentials + ", serverPrincipal: " + serverPrincipal);
+        } catch (final Throwable t) {
+            logoutAfterFailedConstruction(t);
+            throw t;
+        }
     }
     
     /**
@@ -272,13 +290,69 @@ public final class SpnegoAuthenticator {
 
         this.loginContext.login();
 
-        this.serverCredentials = SpnegoProvider.getServerCredential(
-                this.loginContext.getSubject());
+        // See the filter config constructor: a failure after a successful login()
+        // has to release the server credential and log the Subject out here, as
+        // dispose() will never run.
+        try {
+            this.serverCredentials = SpnegoProvider.getServerCredential(
+                    this.loginContext.getSubject());
 
-        this.serverPrincipal = new KerberosPrincipal(
-                this.serverCredentials.getName().toString());
+            final GSSName serverName = this.serverCredentials.getName();
+            if (null == serverName) {
+                // GSSException only renders the detail message when the minor code is non-zero.
+                throw new GSSException(GSSException.DEFECTIVE_CREDENTIAL, 1
+                        , "the server login module produced an unbound acceptor credential with no name;"
+                        + " a named server principal is required, so do not configure principal = *");
+            }
+            this.serverPrincipal = new KerberosPrincipal(serverName.toString());
+        } catch (final Throwable t) {
+            logoutAfterFailedConstruction(t);
+            throw t;
+        }
     }
-    
+
+    /**
+     * Releases the server credential and logs the server's LoginContext out after
+     * construction failed.
+     *
+     * <p>
+     * Only call this once login() has succeeded but the constructor is about to
+     * throw. The half-built object is never handed to the caller, so dispose() -
+     * the usual place to release both - can no longer be reached. The same two
+     * resources are released here, in the order dispose() uses them. That is
+     * lifecycle symmetry and prompt release rather than a leak fix: the abandoned
+     * objects are unreachable and are collected like any others.
+     * </p>
+     *
+     * <p>
+     * A Throwable is accepted rather than an Exception so that an Error raised
+     * while the JGSS provider is being loaded - a NoClassDefFoundError, say - runs
+     * the cleanup too instead of escaping past it.
+     * </p>
+     *
+     * @param cause the failure that aborted construction
+     */
+    private void logoutAfterFailedConstruction(final Throwable cause) {
+        LOGGER.fine(() -> "logging out context after failed construction: " + loginContext);
+        // Still null when getServerCredential() itself is what failed.
+        if (null != this.serverCredentials) {
+            try {
+                this.serverCredentials.dispose();
+            } catch (GSSException e) {
+                // Never let the cleanup hide why construction actually failed.
+                cause.addSuppressed(e);
+                LOGGER.log(Level.WARNING, e, () -> "Dispose failed.");
+            }
+        }
+        try {
+            this.loginContext.logout();
+        } catch (LoginException lex) {
+            // Never let the cleanup hide why construction actually failed.
+            cause.addSuppressed(lex);
+            LOGGER.log(Level.WARNING, lex, () -> "Logout failed.");
+        }
+    }
+
     /**
      * Returns the KerberosPrincipal of the user/client making the HTTP request.
      * 
