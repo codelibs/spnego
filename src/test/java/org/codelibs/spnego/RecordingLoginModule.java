@@ -39,6 +39,9 @@ public class RecordingLoginModule implements LoginModule {
     /** Subject of the most recent initialize() call. */
     private static Subject lastSubject;
 
+    /** Options of the most recent initialize() call. */
+    private static Map<String, ?> lastOptions;
+
     /** Flag making logout() fail, to check that cleanup never hides the real cause. */
     private static boolean logoutFails;
 
@@ -62,6 +65,7 @@ public class RecordingLoginModule implements LoginModule {
         loginCount = 0;
         logoutCount = 0;
         lastSubject = null;
+        lastOptions = null;
         logoutFails = false;
     }
 
@@ -99,11 +103,21 @@ public class RecordingLoginModule implements LoginModule {
         return lastSubject;
     }
 
+    /**
+     * Returns the login module options of the most recent initialize() call.
+     *
+     * @return the options, or null if this module was never initialized
+     */
+    public static Map<String, ?> getLastOptions() {
+        return lastOptions;
+    }
+
     @Override
     public void initialize(final Subject subject, final CallbackHandler callbackHandler, final Map<String, ?> sharedState,
             final Map<String, ?> options) {
         this.subject = subject;
         lastSubject = subject;
+        lastOptions = options;
     }
 
     @Override

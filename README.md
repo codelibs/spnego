@@ -242,6 +242,18 @@ The servlet filter recognizes the following `init-param` values.
 | `spnego.exclude.dirs` | Comma-separated list of URL paths, relative to the context root, that should not be authenticated. |
 | `spnego.logger.level` | Logging verbosity from `1` (most verbose) to `7` (least verbose). |
 
+### Applying changed settings without a restart
+
+`SpnegoFilterConfig.getInstance(FilterConfig)` keeps the first configuration it parses for the
+lifetime of the JVM. An application that builds `SpnegoAuthenticator` itself can apply changed
+settings by building a new one from `SpnegoFilterConfig.newInstance(FilterConfig)`, which parses the
+given parameters on every call, and calling `dispose()` on the old one. A new instance also reloads
+the JAAS login configuration from `spnego.login.conf`, and the server login of an authenticator built
+from it reloads the Kerberos configuration from `spnego.krb5.conf` (through the `refreshKrb5Config`
+option of `Krb5LoginModule`), so a changed location or a changed file takes effect too. Both
+configurations are JVM-wide, so the most recently built instance decides them for every
+authenticator in the JVM.
+
 ### Authorization
 
 Beyond authentication, the filter can enforce authorization by delegating to an implementation of
