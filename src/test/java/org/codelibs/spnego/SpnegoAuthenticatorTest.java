@@ -930,6 +930,116 @@ class SpnegoAuthenticatorTest {
     }
 
     @Nested
+    @DisplayName("Kerberos configuration refresh tests")
+    class Krb5ConfigRefreshTests {
+
+        /** JAAS configuration active before this test installed its own. */
+        private Configuration previousConfiguration;
+
+        /** Flag set when the previous configuration could not be read. */
+        private boolean previousConfigurationUnavailable;
+
+        @BeforeEach
+        void installRecordingLoginModule() {
+            try {
+                this.previousConfiguration = Configuration.getConfiguration();
+            } catch (final SecurityException e) {
+                this.previousConfiguration = null;
+                this.previousConfigurationUnavailable = true;
+            }
+            final Map<String, Object> options = new HashMap<>();
+            options.put("storeKey", "true");
+            Configuration.setConfiguration(new Configuration() {
+                @Override
+                public AppConfigurationEntry[] getAppConfigurationEntry(final String name) {
+                    return new AppConfigurationEntry[] { new AppConfigurationEntry(RecordingLoginModule.class.getName(),
+                            AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, options) };
+                }
+            });
+            RecordingLoginModule.reset();
+        }
+
+        @AfterEach
+        void restorePreviousLoginModule() {
+            Configuration.setConfiguration(this.previousConfigurationUnavailable ? null : this.previousConfiguration);
+            RecordingLoginModule.reset();
+        }
+
+        private GSSCredential namedServerCredential() throws GSSException {
+            final GSSName name = mock(GSSName.class);
+            when(name.toString()).thenReturn("HTTP/server@EXAMPLE.COM");
+            final GSSCredential credential = mock(GSSCredential.class);
+            when(credential.getName()).thenReturn(name);
+            return credential;
+        }
+
+        private void stubFilterConfig(final boolean refreshKrb5Config) {
+            when(mockConfig.isBasicAllowed()).thenReturn(false);
+            when(mockConfig.isUnsecureAllowed()).thenReturn(false);
+            when(mockConfig.getClientLoginModule()).thenReturn("client-module");
+            when(mockConfig.isLocalhostAllowed()).thenReturn(false);
+            when(mockConfig.downgradeNtlm()).thenReturn(false);
+            when(mockConfig.isDelegationAllowed()).thenReturn(false);
+            when(mockConfig.useKeyTab()).thenReturn(true);
+            when(mockConfig.refreshKrb5Config()).thenReturn(refreshKrb5Config);
+        }
+
+        @Test
+        @DisplayName("server login of a config from newInstance() reloads the Kerberos configuration")
+        void serverLoginRefreshesKrb5Config() throws Exception {
+            final GSSCredential credential = namedServerCredential();
+            try (MockedStatic<SpnegoProvider> mockedProvider = mockStatic(SpnegoProvider.class)) {
+                mockedProvider.when(() -> SpnegoProvider.getServerCredential(any(Subject.class))).thenReturn(credential);
+                stubFilterConfig(true);
+                when(mockConfig.getServerLoginModule()).thenReturn(RecordingLoginModule.MODULE_NAME);
+
+                final SpnegoAuthenticator authenticator = new SpnegoAuthenticator(mockConfig);
+
+                assertEquals("EXAMPLE.COM", authenticator.getServerRealm());
+            }
+
+            assertEquals(1, RecordingLoginModule.getLoginCount());
+            assertEquals("true", RecordingLoginModule.getLastOptions().get("refreshKrb5Config"),
+                    "the server login module must be told to reload the Kerberos configuration");
+            assertEquals("true", RecordingLoginModule.getLastOptions().get("storeKey"),
+                    "the options of the login file must be kept");
+            assertNull(Configuration.getConfiguration().getAppConfigurationEntry(RecordingLoginModule.MODULE_NAME)[0]
+                    .getOptions().get("refreshKrb5Config"), "the JVM-wide login configuration must not be changed");
+        }
+
+        @Test
+        @DisplayName("login module constructor also reloads the Kerberos configuration when asked to")
+        void loginModuleConstructorRefreshesKrb5Config() throws Exception {
+            final GSSCredential credential = namedServerCredential();
+            try (MockedStatic<SpnegoProvider> mockedProvider = mockStatic(SpnegoProvider.class)) {
+                mockedProvider.when(() -> SpnegoProvider.getServerCredential(any(Subject.class))).thenReturn(credential);
+                stubFilterConfig(true);
+                when(mockConfig.getPreauthUsername()).thenReturn(null);
+
+                new SpnegoAuthenticator(RecordingLoginModule.MODULE_NAME, mockConfig);
+            }
+
+            assertEquals("true", RecordingLoginModule.getLastOptions().get("refreshKrb5Config"));
+        }
+
+        @Test
+        @DisplayName("server login of the singleton config leaves the login module options alone")
+        void serverLoginDoesNotRefreshKrb5ConfigByDefault() throws Exception {
+            final GSSCredential credential = namedServerCredential();
+            try (MockedStatic<SpnegoProvider> mockedProvider = mockStatic(SpnegoProvider.class)) {
+                mockedProvider.when(() -> SpnegoProvider.getServerCredential(any(Subject.class))).thenReturn(credential);
+                stubFilterConfig(false);
+                when(mockConfig.getServerLoginModule()).thenReturn(RecordingLoginModule.MODULE_NAME);
+
+                new SpnegoAuthenticator(mockConfig);
+            }
+
+            assertEquals(1, RecordingLoginModule.getLoginCount());
+            assertFalse(RecordingLoginModule.getLastOptions().containsKey("refreshKrb5Config"));
+        }
+    }
+
+    @Nested
     @DisplayName("Logout on failed construction tests")
     class LogoutOnFailedConstructionTests {
 

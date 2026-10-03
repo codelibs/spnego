@@ -51,9 +51,17 @@ import jakarta.servlet.FilterConfig;
  * target="_blank">creating a server keytab</a> example.
  * </p>
  * 
- * <p>The class should be used as a Singleton:
+ * <p>The servlet filter uses the class as a Singleton:
  * <code>
  * SpnegoFilterConfig config = SpnegoFilterConfig.getInstance(filter);
+ * </code>
+ * </p>
+ * 
+ * <p>An application that applies changed settings without a restart builds 
+ * a fresh instance instead, which also reloads the JAAS login configuration and 
+ * makes the server login reload the Kerberos configuration:
+ * <code>
+ * SpnegoFilterConfig config = SpnegoFilterConfig.newInstance(filter);
  * </code>
  * </p>
  * 
@@ -112,15 +120,22 @@ public class SpnegoFilterConfig { // NOPMD
     /** domain account to use for pre-authentication. */
     private String username = null;
     
+    /** true if the server login must reload the Kerberos configuration. */
+    private boolean refreshKrb5Config = false;
+    
     private SpnegoFilterConfig() {
         // default private
     }
     
     /**
-     * Class is a Singleton. Use the static getInstance() method.
+     * Use the static getInstance() or newInstance() method.
+     * 
+     * @param config FilterConfig from servlet's init method
+     * @param reload true to reload the JAAS login configuration now and to have 
+     *     the server login reload the Kerberos configuration
      */
-    private SpnegoFilterConfig(final FilterConfig config) throws FileNotFoundException
-        , URISyntaxException {
+    private SpnegoFilterConfig(final FilterConfig config, final boolean reload) 
+        throws FileNotFoundException, URISyntaxException {
 
         // specify logging level
         setLogLevel(config.getInitParameter(Constants.LOGGER_LEVEL));
@@ -144,6 +159,19 @@ public class SpnegoFilterConfig { // NOPMD
         } else {
             System.setProperty("java.security.auth.login.config"
                     , config.getInitParameter(Constants.LOGIN_CONF));            
+        }
+        
+        if (reload) {
+            // The JDK parses the login file once and caches the result JVM-wide, so 
+            // neither a new location nor a changed file would be seen without this. 
+            // refresh() reads java.security.auth.login.config again.
+            Configuration.getConfiguration().refresh();
+            
+            // The Kerberos configuration is cached JVM-wide too, and the only supported 
+            // way to reload it is the refreshKrb5Config option of Krb5LoginModule. 
+            // The server login sets it (see SpnegoAuthenticator), so it reads 
+            // java.security.krb5.conf again when it runs.
+            this.refreshKrb5Config = true;
         }
         
         // check if exists and no options specified
@@ -346,11 +374,50 @@ public class SpnegoFilterConfig { // NOPMD
         
         synchronized (SpnegoFilterConfig.class) {
             if (null == SpnegoFilterConfig.instance) {
-                SpnegoFilterConfig.instance = new SpnegoFilterConfig(config);
+                SpnegoFilterConfig.instance = new SpnegoFilterConfig(config, false);
             }
         }
 
         return SpnegoFilterConfig.instance;
+    }
+
+    /**
+     * Returns a new instance built from the given config parameters.
+     * 
+     * <p>
+     * Unlike {@link #getInstance(FilterConfig)}, every call parses the given config 
+     * and neither reads nor replaces the Singleton, so an application can apply 
+     * changed settings by building a new instance and a new {@link SpnegoAuthenticator} 
+     * from it. The settings that live outside this object are reloaded as well:
+     * </p>
+     * 
+     * <ul>
+     * <li>The JAAS login configuration is refreshed from the given login.conf, so a 
+     * new location or a changed file is picked up by this call.</li>
+     * <li>The server login of a {@link SpnegoAuthenticator} built from the returned 
+     * instance reloads the Kerberos configuration from the given krb5.conf, through 
+     * the <code>refreshKrb5Config</code> option of Krb5LoginModule.</li>
+     * </ul>
+     * 
+     * <p>
+     * Both configurations, and the <code>java.security.krb5.conf</code> and 
+     * <code>java.security.auth.login.config</code> system properties they are read 
+     * from, are JVM-wide: the last instance built decides them for every 
+     * authenticator in the JVM, including older ones that are still in use.
+     * </p>
+     * 
+     * @param config FilterConfig from servlet's init method
+     * @return a new instance that represents the init params
+     * @throws FileNotFoundException if login conf file not found
+     * @throws URISyntaxException if path to login conf is bad
+     */
+    public static SpnegoFilterConfig newInstance(final FilterConfig config) 
+        throws FileNotFoundException, URISyntaxException {
+        
+        // the constructor sets and reads JVM-wide state, so do not interleave it
+        synchronized (SpnegoFilterConfig.class) {
+            return new SpnegoFilterConfig(config, true);
+        }
     }
 
     /**
@@ -592,6 +659,15 @@ public class SpnegoFilterConfig { // NOPMD
         }
     }
     
+    /**
+     * Returns true if the server login should reload the Kerberos configuration.
+     * 
+     * @return true if this instance was created by newInstance()
+     */
+    boolean refreshKrb5Config() {
+        return this.refreshKrb5Config;
+    }
+
     /**
      * Returns true if LoginContext should use keyTab.
      * 

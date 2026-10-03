@@ -15,8 +15,10 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.security.auth.kerberos.KerberosPrincipal;
 import javax.security.auth.login.AppConfigurationEntry;
 import javax.security.auth.login.Configuration;
+import javax.security.auth.login.LoginContext;
 
 import org.codelibs.spnego.SpnegoHttpFilter.Constants;
 import org.junit.jupiter.api.AfterEach;
@@ -824,6 +826,253 @@ class SpnegoFilterConfigTest {
                 return method.invoke(config, loginconf);
             } catch (final InvocationTargetException e) {
                 throw e.getCause();
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("newInstance tests")
+    class NewInstanceTests {
+
+        private static final String KRB5_LOGIN_MODULE = "com.sun.security.auth.module.Krb5LoginModule";
+
+        private static final String JAAS_CONFIG_PROPERTY = "java.security.auth.login.config";
+
+        private static final String KRB5_CONFIG_PROPERTY = "java.security.krb5.conf";
+
+        @TempDir
+        private File tempDir;
+
+        private Configuration savedConfiguration;
+
+        private String savedJaasConfigProperty;
+
+        private String savedKrb5ConfigProperty;
+
+        private Object savedInstance;
+
+        /** true once a test made the JDK reload its Kerberos configuration. */
+        private boolean krb5ConfigReloaded;
+
+        @BeforeEach
+        void saveGlobalState() throws Exception {
+            try {
+                savedConfiguration = Configuration.getConfiguration();
+            } catch (final Exception | Error e) {
+                savedConfiguration = null;
+            }
+            // Start from the JDK's file based configuration, not one another test installed.
+            Configuration.setConfiguration(null);
+            savedJaasConfigProperty = System.getProperty(JAAS_CONFIG_PROPERTY);
+            savedKrb5ConfigProperty = System.getProperty(KRB5_CONFIG_PROPERTY);
+            savedInstance = instanceField().get(null);
+            instanceField().set(null, null);
+        }
+
+        @AfterEach
+        void restoreGlobalState() throws Exception {
+            restoreProperty(JAAS_CONFIG_PROPERTY, savedJaasConfigProperty);
+            restoreProperty(KRB5_CONFIG_PROPERTY, savedKrb5ConfigProperty);
+            if (krb5ConfigReloaded) {
+                // Load the Kerberos configuration the restored property names again,
+                // with the same JDK option the server login relies on.
+                final Map<String, Object> options = acceptorOptions();
+                options.put("refreshKrb5Config", "true");
+                // The restored configuration may name no default realm.
+                options.put("principal", "HTTP/localhost@RESTORE.EXAMPLE");
+                final LoginContext context = new LoginContext("restore", null, null, new Configuration() {
+                    @Override
+                    public AppConfigurationEntry[] getAppConfigurationEntry(final String name) {
+                        return new AppConfigurationEntry[] { new AppConfigurationEntry(KRB5_LOGIN_MODULE,
+                                AppConfigurationEntry.LoginModuleControlFlag.REQUIRED, options) };
+                    }
+                });
+                context.login();
+                context.logout();
+            }
+            Configuration.setConfiguration(savedConfiguration);
+            instanceField().set(null, savedInstance);
+        }
+
+        @Test
+        @DisplayName("returns a new instance on every call and leaves the singleton alone")
+        void newInstanceIsNotTheSingleton() throws Exception {
+            final File loginConf = writeLoginConf("login.conf", "spnego-client", "spnego-server");
+            final FilterConfig filterConfig = filterConfig(loginConf, writeFile("krb5.conf"), "spnego-client", "spnego-server");
+
+            final SpnegoFilterConfig first = SpnegoFilterConfig.newInstance(filterConfig);
+            final SpnegoFilterConfig second = SpnegoFilterConfig.newInstance(filterConfig);
+
+            assertNotSame(first, second);
+            assertNull(instanceField().get(null), "newInstance() must not create the singleton");
+            assertTrue(first.refreshKrb5Config());
+            assertEquals("spnego-server", first.getServerLoginModule());
+
+            final SpnegoFilterConfig singleton = SpnegoFilterConfig.getInstance(filterConfig);
+            assertNotSame(first, singleton);
+            assertFalse(singleton.refreshKrb5Config(), "getInstance() must keep its behavior");
+            assertNotSame(singleton, SpnegoFilterConfig.newInstance(filterConfig));
+            assertSame(singleton, SpnegoFilterConfig.getInstance(filterConfig));
+        }
+
+        @Test
+        @DisplayName("picks up a login.conf that was rewritten in place")
+        void newInstanceReloadsChangedLoginConf() throws Exception {
+            final File krb5Conf = writeFile("krb5.conf");
+            final File loginConf = writeLoginConf("login.conf", "client-a", "server-a");
+            SpnegoFilterConfig.newInstance(filterConfig(loginConf, krb5Conf, "client-a", "server-a"));
+
+            writeLoginConf("login.conf", "client-b", "server-b");
+
+            final SpnegoFilterConfig config =
+                    SpnegoFilterConfig.newInstance(filterConfig(loginConf, krb5Conf, "client-b", "server-b"));
+            assertEquals("client-b", config.getClientLoginModule());
+            assertEquals("server-b", config.getServerLoginModule());
+
+            // and the modules that were removed from the file are gone
+            assertThrows(IllegalArgumentException.class,
+                    () -> SpnegoFilterConfig.newInstance(filterConfig(loginConf, krb5Conf, "client-a", "server-a")));
+        }
+
+        @Test
+        @DisplayName("points the JVM at new login.conf and krb5.conf locations")
+        void newInstanceFollowsNewLocations() throws Exception {
+            final File loginConfA = writeLoginConf("login-a.conf", "client-a", "server-a");
+            final File krb5ConfA = writeFile("krb5-a.conf");
+            SpnegoFilterConfig.newInstance(filterConfig(loginConfA, krb5ConfA, "client-a", "server-a"));
+
+            final File loginConfB = writeLoginConf("login-b.conf", "client-b", "server-b");
+            final File krb5ConfB = writeFile("krb5-b.conf");
+            final SpnegoFilterConfig config =
+                    SpnegoFilterConfig.newInstance(filterConfig(loginConfB, krb5ConfB, "client-b", "server-b"));
+
+            assertEquals("server-b", config.getServerLoginModule());
+            assertEquals(loginConfB.getAbsolutePath(), System.getProperty(JAAS_CONFIG_PROPERTY));
+            assertEquals(krb5ConfB.getAbsolutePath(), System.getProperty(KRB5_CONFIG_PROPERTY));
+            assertNull(Configuration.getConfiguration().getAppConfigurationEntry("server-a"),
+                    "the JAAS configuration must have been read from the new location");
+        }
+
+        @Test
+        @DisplayName("an authenticator built from it reloads krb5.conf from the new location")
+        void authenticatorReloadsKrb5Conf() throws Exception {
+            // An acceptor that uses a keytab logs in without a KDC and without reading the
+            // keytab, so a real Krb5LoginModule can run here. The default realm shows which
+            // Kerberos configuration the JDK has loaded.
+            final File loginConf = writeLoginConf("login.conf", "spnego-client", "spnego-server");
+            final File krb5ConfA = writeKrb5Conf("krb5-a.conf", "REALM-A.EXAMPLE");
+            final File krb5ConfB = writeKrb5Conf("krb5-b.conf", "REALM-B.EXAMPLE");
+            krb5ConfigReloaded = true;
+
+            final SpnegoAuthenticator first = new SpnegoAuthenticator(SpnegoFilterConfig.newInstance(
+                    filterConfig(loginConf, krb5ConfA, "spnego-client", "spnego-server")));
+            try {
+                assertEquals("REALM-A.EXAMPLE", first.getServerRealm());
+                assertEquals("REALM-A.EXAMPLE", new KerberosPrincipal("user").getRealm());
+            } finally {
+                first.dispose();
+            }
+
+            final SpnegoAuthenticator second = new SpnegoAuthenticator(SpnegoFilterConfig.newInstance(
+                    filterConfig(loginConf, krb5ConfB, "spnego-client", "spnego-server")));
+            try {
+                assertEquals("REALM-B.EXAMPLE", second.getServerRealm());
+                assertEquals("REALM-B.EXAMPLE", new KerberosPrincipal("user").getRealm());
+            } finally {
+                second.dispose();
+            }
+        }
+
+        private File writeKrb5Conf(final String name, final String realm) throws Exception {
+            final File file = new File(tempDir, name);
+            final String content = "[libdefaults]\n"
+                    + "    default_realm = " + realm + "\n"
+                    + "[realms]\n"
+                    + "    " + realm + " = { kdc = 127.0.0.1:1 }\n";
+            java.nio.file.Files.write(file.toPath(), content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return file;
+        }
+
+        private Map<String, Object> acceptorOptions() {
+            final Map<String, Object> options = new HashMap<>();
+            options.put("storeKey", "true");
+            options.put("useKeyTab", "true");
+            options.put("isInitiator", "false");
+            options.put("doNotPrompt", "true");
+            options.put("keyTab", new File(tempDir, "absent.keytab").getAbsolutePath());
+            options.put("principal", "HTTP/localhost");
+            return options;
+        }
+
+        private File writeFile(final String name) throws Exception {
+            final File file = new File(tempDir, name);
+            java.nio.file.Files.write(file.toPath(), new byte[0]);
+            return file;
+        }
+
+        private File writeLoginConf(final String name, final String clientModule, final String serverModule)
+                throws Exception {
+            final File file = new File(tempDir, name);
+            final String content = clientModule + " {\n"
+                    + "    com.sun.security.auth.module.Krb5LoginModule required;\n"
+                    + "};\n"
+                    + serverModule + " {\n"
+                    + "    com.sun.security.auth.module.Krb5LoginModule required\n"
+                    + "    storeKey=true\n"
+                    + "    useKeyTab=true\n"
+                    + "    isInitiator=false\n"
+                    + "    doNotPrompt=true\n"
+                    + "    keyTab=\"" + new File(tempDir, "absent.keytab").getAbsolutePath() + "\"\n"
+                    + "    principal=\"HTTP/localhost\";\n"
+                    + "};\n";
+            java.nio.file.Files.write(file.toPath(), content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return file;
+        }
+
+        private FilterConfig filterConfig(final File loginConf, final File krb5Conf, final String clientModule,
+                final String serverModule) {
+            final Map<String, String> params = new HashMap<>();
+            params.put(Constants.LOGIN_CONF, loginConf.getAbsolutePath());
+            params.put(Constants.KRB5_CONF, krb5Conf.getAbsolutePath());
+            params.put(Constants.CLIENT_MODULE, clientModule);
+            params.put(Constants.SERVER_MODULE, serverModule);
+            params.put(Constants.ALLOW_BASIC, "false");
+            params.put(Constants.ALLOW_UNSEC_BASIC, "false");
+            params.put(Constants.PROMPT_NTLM, "false");
+            return new FilterConfig() {
+                @Override
+                public String getFilterName() {
+                    return "test";
+                }
+
+                @Override
+                public jakarta.servlet.ServletContext getServletContext() {
+                    return null;
+                }
+
+                @Override
+                public String getInitParameter(final String name) {
+                    return params.get(name);
+                }
+
+                @Override
+                public java.util.Enumeration<String> getInitParameterNames() {
+                    return Collections.enumeration(params.keySet());
+                }
+            };
+        }
+
+        private java.lang.reflect.Field instanceField() throws Exception {
+            final java.lang.reflect.Field field = SpnegoFilterConfig.class.getDeclaredField("instance");
+            field.setAccessible(true);
+            return field;
+        }
+
+        private void restoreProperty(final String key, final String value) {
+            if (null == value) {
+                System.clearProperty(key);
+            } else {
+                System.setProperty(key, value);
             }
         }
     }

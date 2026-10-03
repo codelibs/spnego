@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.PrivilegedActionException;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -33,6 +34,8 @@ import java.util.logging.Logger;
 
 import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.kerberos.KerberosPrincipal;
+import javax.security.auth.login.AppConfigurationEntry;
+import javax.security.auth.login.Configuration;
 import javax.security.auth.login.LoginContext;
 import javax.security.auth.login.LoginException;
 
@@ -150,13 +153,15 @@ public final class SpnegoAuthenticator {
         this.allowDelegation = config.isDelegationAllowed();
 
         if (config.useKeyTab()) {
-            this.loginContext = new LoginContext(config.getServerLoginModule());
+            this.loginContext = newServerLoginContext(config.getServerLoginModule()
+                    , null, config.refreshKrb5Config());
         } else {
             final CallbackHandler handler = SpnegoProvider.getUsernamePasswordHandler(
                     config.getPreauthUsername()
                     , config.getPreauthPassword());
 
-            this.loginContext = new LoginContext(config.getServerLoginModule(), handler);            
+            this.loginContext = newServerLoginContext(config.getServerLoginModule()
+                    , handler, config.refreshKrb5Config());
         }
 
         LOGGER.fine(() -> "logging in context: " + loginContext);
@@ -278,11 +283,12 @@ public final class SpnegoAuthenticator {
         final boolean hasUsername = null != username && !username.trim().isEmpty();
         
         if (hasUsername) {
-            this.loginContext = new LoginContext(loginModuleName
+            this.loginContext = newServerLoginContext(loginModuleName
                 , SpnegoProvider.getUsernamePasswordHandler(username
-                    , config.getPreauthPassword()));
+                    , config.getPreauthPassword()), config.refreshKrb5Config());
         } else if (config.useKeyTab()) {
-            this.loginContext = new LoginContext(loginModuleName);
+            this.loginContext = newServerLoginContext(loginModuleName
+                , null, config.refreshKrb5Config());
         } else {
             throw new IllegalArgumentException(
                 "Must provide a username/password or specify a keytab file");
@@ -309,6 +315,60 @@ public final class SpnegoAuthenticator {
             logoutAfterFailedConstruction(t);
             throw t;
         }
+    }
+
+    /**
+     * Creates the LoginContext the server pre-authenticates with.
+     * 
+     * <p>
+     * With <code>refreshKrb5Config</code> the login module entries of the server 
+     * module get the Krb5LoginModule option of the same name, which makes the login 
+     * reload the JVM-wide Kerberos configuration from <code>java.security.krb5.conf</code> 
+     * before it runs. The JDK offers no other supported way to reload it, and the 
+     * login.conf a deployer wrote is left as it is.
+     * </p>
+     * 
+     * @param moduleName name of the server module in login.conf
+     * @param handler callback handler, or null to use the default one
+     * @param refreshKrb5Config true to reload the Kerberos configuration
+     * @return a LoginContext that has not logged in yet
+     * @throws LoginException if the LoginContext cannot be created
+     */
+    private static LoginContext newServerLoginContext(final String moduleName
+        , final CallbackHandler handler, final boolean refreshKrb5Config) 
+        throws LoginException {
+
+        if (!refreshKrb5Config) {
+            return null == handler 
+                    ? new LoginContext(moduleName) : new LoginContext(moduleName, handler);
+        }
+
+        final Configuration base = Configuration.getConfiguration();
+        final Configuration refreshing = new Configuration() {
+            @Override
+            public AppConfigurationEntry[] getAppConfigurationEntry(final String name) {
+                final AppConfigurationEntry[] entries = base.getAppConfigurationEntry(name);
+                if (null == entries || !moduleName.equals(name)) {
+                    return entries;
+                }
+                final AppConfigurationEntry[] result = new AppConfigurationEntry[entries.length];
+                for (int i = 0; i < entries.length; i++) {
+                    final Map<String, Object> options = new HashMap<>(entries[i].getOptions());
+                    options.put("refreshKrb5Config", "true");
+                    result[i] = new AppConfigurationEntry(entries[i].getLoginModuleName()
+                            , entries[i].getControlFlag(), options);
+                }
+                return result;
+            }
+
+            @Override
+            public void refresh() {
+                base.refresh();
+            }
+        };
+
+        // a null handler makes LoginContext load the default one, as above
+        return new LoginContext(moduleName, null, handler, refreshing);
     }
 
     /**
